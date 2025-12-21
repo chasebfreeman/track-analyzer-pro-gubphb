@@ -143,7 +143,7 @@ export default function BrowseScreen() {
               {selectedTrack ? selectedTrack.name : 'Choose a track...'}
             </Text>
             <IconSymbol
-              ios_icon_name="chevron_down"
+              ios_icon_name="chevron.down"
               android_material_icon_name={showTrackPicker ? 'expand_less' : 'expand_more'}
               size={20}
               color={colors.textSecondary}
@@ -183,7 +183,7 @@ export default function BrowseScreen() {
         {readings.length === 0 ? (
           <View style={styles.emptyState}>
             <IconSymbol
-              ios_icon_name="search"
+              ios_icon_name="magnifyingglass"
               android_material_icon_name="search"
               size={64}
               color={colors.textSecondary}
@@ -223,7 +223,7 @@ export default function BrowseScreen() {
                             </Text>
                           </View>
                           <IconSymbol
-                            ios_icon_name="chevron_down"
+                            ios_icon_name="chevron.down"
                             android_material_icon_name={
                               expandedReading === reading.id ? 'expand_less' : 'expand_more'
                             }

@@ -249,7 +249,7 @@ export default function RecordScreen() {
               {selectedTrack ? selectedTrack.name : 'Choose a track...'}
             </Text>
             <IconSymbol
-              ios_icon_name="chevron_down"
+              ios_icon_name="chevron.down"
               android_material_icon_name={showTrackPicker ? 'expand_less' : 'expand_more'}
               size={20}
               color={colors.textSecondary}

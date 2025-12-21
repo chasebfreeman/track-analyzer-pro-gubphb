@@ -2,7 +2,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router/unstable-native-tabs';
 import { colors } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol.ios';
+import { IconSymbol } from '@/components/IconSymbol';
 
 export default function TabLayout() {
   return (
