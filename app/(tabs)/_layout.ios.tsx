@@ -1,60 +1,29 @@
 
 import React from 'react';
-import { Tabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 import { colors } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol';
 
 export default function TabLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        headerShown: false,
+    <NativeTabs
+      tintColor={colors.primary}
+      iconColor={colors.textSecondary}
+      labelStyle={{
+        color: colors.textSecondary,
       }}
     >
-      <Tabs.Screen
-        name="tracks"
-        options={{
-          title: 'Tracks',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol 
-              ios_icon_name="map.fill" 
-              android_material_icon_name="map" 
-              size={24} 
-              color={color} 
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="record"
-        options={{
-          title: 'Record',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol 
-              ios_icon_name="plus.circle.fill" 
-              android_material_icon_name="add_circle" 
-              size={24} 
-              color={color} 
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="browse"
-        options={{
-          title: 'Browse',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol 
-              ios_icon_name="magnifyingglass" 
-              android_material_icon_name="search" 
-              size={24} 
-              color={color} 
-            />
-          ),
-        }}
-      />
-    </Tabs>
+      <NativeTabs.Trigger name="tracks">
+        <Label>Tracks</Label>
+        <Icon sf="map.fill" drawable="map" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="record">
+        <Label>Record</Label>
+        <Icon sf="plus.circle.fill" drawable="add_circle" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="browse">
+        <Label>Browse</Label>
+        <Icon sf="magnifyingglass" drawable="search" />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
