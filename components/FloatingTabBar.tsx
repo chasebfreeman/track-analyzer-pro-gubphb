@@ -163,15 +163,15 @@ export default function FloatingTabBar({
           width: containerWidth,
           marginBottom: bottomMargin ?? 20
         }
-      ]} pointerEvents="box-none">
+      ]} pointerEvents="auto">
         <BlurView
           intensity={80}
           style={[dynamicStyles.blurContainer, { borderRadius }]}
-          pointerEvents="box-none"
+          pointerEvents="auto"
         >
           <View style={dynamicStyles.background} pointerEvents="none" />
           <Animated.View style={[dynamicStyles.indicator, indicatorStyle]} pointerEvents="none" />
-          <View style={styles.tabsContainer} pointerEvents="box-none">
+          <View style={styles.tabsContainer} pointerEvents="auto">
             {tabs.map((tab, index) => {
               const isActive = activeTabIndex === index;
 
@@ -181,8 +181,9 @@ export default function FloatingTabBar({
                   style={styles.tab}
                   onPress={() => handleTabPress(tab.route)}
                   activeOpacity={0.7}
+                  pointerEvents="auto"
                 >
-                  <View style={styles.tabContent}>
+                  <View style={styles.tabContent} pointerEvents="none">
                     <IconSymbol
                       android_material_icon_name={tab.icon}
                       ios_icon_name={tab.icon}
