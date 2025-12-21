@@ -101,8 +101,6 @@ export default function FloatingTabBar({
     router.replace(route);
   };
 
-  // Remove unnecessary tabBarStyle animation to prevent flickering
-
   const tabWidthPercent = ((100 / tabs.length) - 1).toFixed(2);
 
   const indicatorStyle = useAnimatedStyle(() => {
@@ -169,10 +167,11 @@ export default function FloatingTabBar({
         <BlurView
           intensity={80}
           style={[dynamicStyles.blurContainer, { borderRadius }]}
+          pointerEvents="box-none"
         >
-          <View style={dynamicStyles.background} />
-          <Animated.View style={[dynamicStyles.indicator, indicatorStyle]} />
-          <View style={styles.tabsContainer}>
+          <View style={dynamicStyles.background} pointerEvents="none" />
+          <Animated.View style={[dynamicStyles.indicator, indicatorStyle]} pointerEvents="none" />
+          <View style={styles.tabsContainer} pointerEvents="box-none">
             {tabs.map((tab, index) => {
               const isActive = activeTabIndex === index;
 
