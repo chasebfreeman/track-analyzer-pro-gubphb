@@ -31,6 +31,8 @@ export default function RecordScreen() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [showYearPicker, setShowYearPicker] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editingReadingId, setEditingReadingId] = useState<string | null>(null);
 
   const [leftLane, setLeftLane] = useState<LaneReading>({
     trackTemp: '',
@@ -69,7 +71,47 @@ export default function RecordScreen() {
         console.log('Tracks reloaded on focus');
       });
       loadAvailableYears();
-    }, [])
+
+      // Check if we're in edit mode
+      if (params.editMode === 'true' && params.readingId) {
+        console.log('Edit mode detected, loading reading data');
+        setEditMode(true);
+        setEditingReadingId(params.readingId as string);
+        
+        // Load the reading data from params
+        setClassCurrentlyRunning((params.classCurrentlyRunning as string) || '');
+        
+        // Load left lane data
+        setLeftLane({
+          trackTemp: (params.leftLaneTrackTemp as string) || '',
+          uvIndex: (params.leftLaneUvIndex as string) || '',
+          kegSL: (params.leftLaneKegSL as string) || '',
+          kegOut: (params.leftLaneKegOut as string) || '',
+          grippoSL: (params.leftLaneGrippoSL as string) || '',
+          grippoOut: (params.leftLaneGrippoOut as string) || '',
+          shine: (params.leftLaneShine as string) || '',
+          notes: (params.leftLaneNotes as string) || '',
+          imageUri: (params.leftLaneImageUri as string) || undefined,
+        });
+        
+        // Load right lane data
+        setRightLane({
+          trackTemp: (params.rightLaneTrackTemp as string) || '',
+          uvIndex: (params.rightLaneUvIndex as string) || '',
+          kegSL: (params.rightLaneKegSL as string) || '',
+          kegOut: (params.rightLaneKegOut as string) || '',
+          grippoSL: (params.rightLaneGrippoSL as string) || '',
+          grippoOut: (params.rightLaneGrippoOut as string) || '',
+          shine: (params.rightLaneShine as string) || '',
+          notes: (params.rightLaneNotes as string) || '',
+          imageUri: (params.rightLaneImageUri as string) || undefined,
+        });
+      } else {
+        // Reset edit mode when not editing
+        setEditMode(false);
+        setEditingReadingId(null);
+      }
+    }, [params])
   );
 
   useEffect(() => {
@@ -164,7 +206,7 @@ export default function RecordScreen() {
 
     const now = new Date();
     const reading: TrackReading = {
-      id: Date.now().toString(),
+      id: editMode && editingReadingId ? editingReadingId : Date.now().toString(),
       trackId: selectedTrack.id,
       date: now.toLocaleDateString(),
       time: now.toLocaleTimeString(),
@@ -175,41 +217,58 @@ export default function RecordScreen() {
       rightLane,
     };
 
-    console.log('Saving reading with year:', selectedYear);
+    console.log(editMode ? 'Updating reading:' : 'Saving new reading:', reading.id);
 
     try {
       await StorageService.saveReading(reading);
-      Alert.alert('Success', `Reading saved successfully for ${selectedYear}!`, [
+      
+      const successMessage = editMode 
+        ? `Reading updated successfully for ${selectedYear}!`
+        : `Reading saved successfully for ${selectedYear}!`;
+      
+      Alert.alert('Success', successMessage, [
         {
           text: 'OK',
           onPress: () => {
-            setClassCurrentlyRunning('');
-            setLeftLane({
-              trackTemp: '',
-              uvIndex: '',
-              kegSL: '',
-              kegOut: '',
-              grippoSL: '',
-              grippoOut: '',
-              shine: '',
-              notes: '',
-            });
-            setRightLane({
-              trackTemp: '',
-              uvIndex: '',
-              kegSL: '',
-              kegOut: '',
-              grippoSL: '',
-              grippoOut: '',
-              shine: '',
-              notes: '',
-            });
+            if (editMode) {
+              // Navigate back to browse after editing
+              router.back();
+            } else {
+              // Clear form for new entry
+              setClassCurrentlyRunning('');
+              setLeftLane({
+                trackTemp: '',
+                uvIndex: '',
+                kegSL: '',
+                kegOut: '',
+                grippoSL: '',
+                grippoOut: '',
+                shine: '',
+                notes: '',
+              });
+              setRightLane({
+                trackTemp: '',
+                uvIndex: '',
+                kegSL: '',
+                kegOut: '',
+                grippoSL: '',
+                grippoOut: '',
+                shine: '',
+                notes: '',
+              });
+            }
           },
         },
       ]);
     } catch (error) {
       console.error('Error saving reading:', error);
       Alert.alert('Error', 'Failed to save reading');
+    }
+  };
+
+  const handleCancel = () => {
+    if (editMode) {
+      router.back();
     }
   };
 
@@ -351,7 +410,17 @@ export default function RecordScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Record Data</Text>
+        <View style={styles.headerContainer}>
+          <Text style={styles.title}>{editMode ? 'Edit Reading' : 'Record Data'}</Text>
+          {editMode && (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancel}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={styles.yearSelector}>
           <Text style={styles.label}>Select Year *</Text>
@@ -362,25 +431,28 @@ export default function RecordScreen() {
               Keyboard.dismiss();
               setShowYearPicker(!showYearPicker);
             }}
+            disabled={editMode}
           >
             <View style={styles.yearButtonContent}>
               <IconSymbol
                 ios_icon_name="calendar"
                 android_material_icon_name="calendar_today"
                 size={20}
-                color={colors.primary}
+                color={editMode ? colors.textSecondary : colors.primary}
               />
-              <Text style={styles.yearButtonText}>{selectedYear}</Text>
+              <Text style={[styles.yearButtonText, editMode && styles.disabledText]}>{selectedYear}</Text>
             </View>
-            <IconSymbol
-              ios_icon_name="chevron.down"
-              android_material_icon_name={showYearPicker ? 'expand_less' : 'expand_more'}
-              size={20}
-              color={colors.text}
-            />
+            {!editMode && (
+              <IconSymbol
+                ios_icon_name="chevron.down"
+                android_material_icon_name={showYearPicker ? 'expand_less' : 'expand_more'}
+                size={20}
+                color={colors.text}
+              />
+            )}
           </TouchableOpacity>
 
-          {showYearPicker && (
+          {showYearPicker && !editMode && (
             <View style={styles.yearList}>
               {availableYears.map((year, index) => (
                 <React.Fragment key={index}>
@@ -419,19 +491,22 @@ export default function RecordScreen() {
               Keyboard.dismiss();
               setShowTrackPicker(!showTrackPicker);
             }}
+            disabled={editMode}
           >
-            <Text style={styles.trackButtonText}>
+            <Text style={[styles.trackButtonText, editMode && styles.disabledText]}>
               {selectedTrack ? selectedTrack.name : 'Choose a track...'}
             </Text>
-            <IconSymbol
-              ios_icon_name="chevron.down"
-              android_material_icon_name={showTrackPicker ? 'expand_less' : 'expand_more'}
-              size={20}
-              color={colors.text}
-            />
+            {!editMode && (
+              <IconSymbol
+                ios_icon_name="chevron.down"
+                android_material_icon_name={showTrackPicker ? 'expand_less' : 'expand_more'}
+                size={20}
+                color={colors.text}
+              />
+            )}
           </TouchableOpacity>
 
-          {showTrackPicker && (
+          {showTrackPicker && !editMode && (
             <View style={styles.trackList}>
               {tracks.length === 0 ? (
                 <Text style={styles.noTracksText}>
@@ -492,7 +567,9 @@ export default function RecordScreen() {
                 size={20}
                 color="#ffffff"
               />
-              <Text style={styles.saveButtonText}>Save Reading for {selectedYear}</Text>
+              <Text style={styles.saveButtonText}>
+                {editMode ? `Update Reading for ${selectedYear}` : `Save Reading for ${selectedYear}`}
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -515,11 +592,29 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingHorizontal: 16,
       paddingBottom: 120,
     },
+    headerContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
     title: {
       fontSize: 28,
       fontWeight: '700',
-      marginBottom: 20,
       color: colors.text,
+    },
+    cancelButton: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      backgroundColor: colors.card,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cancelButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.primary,
     },
     yearSelector: {
       backgroundColor: colors.card,
@@ -549,6 +644,9 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 18,
       fontWeight: '600',
       color: colors.text,
+    },
+    disabledText: {
+      color: colors.textSecondary,
     },
     yearList: {
       marginTop: 12,
