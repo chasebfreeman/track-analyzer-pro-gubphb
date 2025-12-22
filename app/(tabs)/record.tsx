@@ -49,20 +49,19 @@ export default function RecordScreen() {
 
   // Load tracks on mount
   useEffect(() => {
+    console.log('RecordScreen mounted');
     loadTracks();
   }, []);
 
   // Use useFocusEffect to handle track selection when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('Record screen focused, params:', params);
+      console.log('Record screen focused');
+      console.log('Params:', JSON.stringify(params));
       
       // Reload tracks to ensure we have the latest data
       loadTracks().then(() => {
-        // After tracks are loaded, check if we need to auto-select
-        if (params.trackId) {
-          console.log('Attempting to auto-select track with ID:', params.trackId);
-        }
+        console.log('Tracks reloaded on focus');
       });
     }, [params.trackId])
   );
@@ -70,20 +69,22 @@ export default function RecordScreen() {
   // Separate effect to handle track selection based on params
   useEffect(() => {
     if (params.trackId && tracks.length > 0) {
+      console.log('Attempting to select track with ID:', params.trackId);
       const track = tracks.find((t) => t.id === params.trackId);
       if (track) {
-        console.log('Auto-selecting track from params:', track.name);
+        console.log('Auto-selecting track:', track.name);
         setSelectedTrack(track);
         setShowTrackPicker(false);
       } else {
         console.log('Track not found with id:', params.trackId);
+        console.log('Available track IDs:', tracks.map(t => t.id));
       }
     }
   }, [params.trackId, tracks]);
 
   const loadTracks = async () => {
     setIsLoading(true);
-    console.log('Loading tracks...');
+    console.log('Loading tracks in RecordScreen...');
     try {
       const loadedTracks = await StorageService.getTracks();
       console.log('Loaded tracks:', loadedTracks.length);
@@ -287,7 +288,10 @@ export default function RecordScreen() {
           <Text style={styles.label}>Select Track *</Text>
           <TouchableOpacity
             style={styles.trackButton}
-            onPress={() => setShowTrackPicker(!showTrackPicker)}
+            onPress={() => {
+              console.log('Track picker toggled');
+              setShowTrackPicker(!showTrackPicker);
+            }}
           >
             <Text style={styles.trackButtonText}>
               {selectedTrack ? selectedTrack.name : 'Choose a track...'}
@@ -315,7 +319,7 @@ export default function RecordScreen() {
                         selectedTrack?.id === track.id && styles.trackOptionSelected,
                       ]}
                       onPress={() => {
-                        console.log('Track selected:', track.name);
+                        console.log('Track selected from picker:', track.name);
                         setSelectedTrack(track);
                         setShowTrackPicker(false);
                       }}

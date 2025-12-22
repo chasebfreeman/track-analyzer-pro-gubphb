@@ -22,15 +22,10 @@ export default function TracksScreen() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [trackName, setTrackName] = useState('');
   const [trackLocation, setTrackLocation] = useState('');
-  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    console.log('TracksScreen mounted');
     loadTracks();
-    // Small delay to ensure component is fully mounted and interactive
-    const timer = setTimeout(() => {
-      setIsReady(true);
-    }, 100);
-    return () => clearTimeout(timer);
   }, []);
 
   // Reload tracks when screen comes into focus
@@ -38,7 +33,6 @@ export default function TracksScreen() {
     useCallback(() => {
       console.log('Tracks screen focused, reloading tracks');
       loadTracks();
-      setIsReady(true);
     }, [])
   );
 
@@ -108,12 +102,11 @@ export default function TracksScreen() {
   }, [router]);
 
   return (
-    <View style={styles.container} collapsable={false}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={true}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Race Tracks</Text>
@@ -167,17 +160,15 @@ export default function TracksScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.tracksList} collapsable={false}>
+          <View style={styles.tracksList}>
             {tracks.map((track, index) => (
               <React.Fragment key={index}>
                 <TouchableOpacity
                   style={styles.trackCard}
                   onPress={() => handleTrackPress(track)}
                   activeOpacity={0.7}
-                  disabled={!isReady}
-                  collapsable={false}
                 >
-                  <View style={styles.trackInfo} pointerEvents="none">
+                  <View style={styles.trackInfo}>
                     <View style={styles.trackIcon}>
                       <IconSymbol
                         ios_icon_name="map"
@@ -213,7 +204,6 @@ export default function TracksScreen() {
                       handleDeleteTrack(track);
                     }}
                     activeOpacity={0.7}
-                    disabled={!isReady}
                   >
                     <IconSymbol
                       ios_icon_name="trash"
