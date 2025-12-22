@@ -96,7 +96,7 @@ export default function FloatingTabBar({
   }, [activeTabIndex, animatedValue]);
 
   const handleTabPress = React.useCallback((route: Href) => {
-    console.log('Tab pressed, navigating to:', route);
+    console.log('FloatingTabBar: Tab pressed, navigating to:', route);
     // Use push for more reliable navigation
     router.push(route);
   }, [router]);
@@ -166,6 +166,7 @@ export default function FloatingTabBar({
               marginBottom: bottomMargin ?? 20
             }
           ]}
+          pointerEvents="box-none"
         >
           <BlurView
             intensity={80}
@@ -174,7 +175,7 @@ export default function FloatingTabBar({
           >
             <View style={dynamicStyles.background} pointerEvents="none" />
             <Animated.View style={[dynamicStyles.indicator, indicatorStyle]} pointerEvents="none" />
-            <View style={styles.tabsContainer}>
+            <View style={styles.tabsContainer} pointerEvents="box-none">
               {tabs.map((tab, index) => {
                 const isActive = activeTabIndex === index;
 

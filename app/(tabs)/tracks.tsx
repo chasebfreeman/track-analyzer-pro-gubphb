@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { StorageService } from '@/utils/storage';
 import { Track } from '@/types/TrackData';
@@ -22,13 +22,30 @@ export default function TracksScreen() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [trackName, setTrackName] = useState('');
   const [trackLocation, setTrackLocation] = useState('');
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     loadTracks();
+    // Small delay to ensure component is fully mounted and interactive
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
+  // Reload tracks when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Tracks screen focused, reloading tracks');
+      loadTracks();
+      setIsReady(true);
+    }, [])
+  );
+
   const loadTracks = async () => {
+    console.log('Loading tracks...');
     const loadedTracks = await StorageService.getTracks();
+    console.log('Loaded tracks count:', loadedTracks.length);
     setTracks(loadedTracks.sort((a, b) => b.createdAt - a.createdAt));
   };
 
@@ -58,7 +75,7 @@ export default function TracksScreen() {
     }
   };
 
-  const handleDeleteTrack = (track: Track) => {
+  const handleDeleteTrack = useCallback((track: Track) => {
     Alert.alert(
       'Delete Track',
       `Are you sure you want to delete "${track.name}"? This will also delete all readings for this track.`,
@@ -80,28 +97,30 @@ export default function TracksScreen() {
         },
       ]
     );
-  };
+  }, []);
 
-  const handleTrackPress = (track: Track) => {
-    console.log('Track pressed:', track.name);
+  const handleTrackPress = useCallback((track: Track) => {
+    console.log('Track pressed:', track.name, 'ID:', track.id);
     router.push({
       pathname: '/(tabs)/record',
       params: { trackId: track.id, trackName: track.name },
     });
-  };
+  }, [router]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} collapsable={false}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={true}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Race Tracks</Text>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => setShowAddForm(!showAddForm)}
+            activeOpacity={0.7}
           >
             <IconSymbol
               ios_icon_name="plus"
@@ -148,15 +167,17 @@ export default function TracksScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.tracksList}>
+          <View style={styles.tracksList} collapsable={false}>
             {tracks.map((track, index) => (
               <React.Fragment key={index}>
                 <TouchableOpacity
                   style={styles.trackCard}
                   onPress={() => handleTrackPress(track)}
                   activeOpacity={0.7}
+                  disabled={!isReady}
+                  collapsable={false}
                 >
-                  <View style={styles.trackInfo}>
+                  <View style={styles.trackInfo} pointerEvents="none">
                     <View style={styles.trackIcon}>
                       <IconSymbol
                         ios_icon_name="map"
@@ -191,6 +212,8 @@ export default function TracksScreen() {
                       e.stopPropagation();
                       handleDeleteTrack(track);
                     }}
+                    activeOpacity={0.7}
+                    disabled={!isReady}
                   >
                     <IconSymbol
                       ios_icon_name="trash"

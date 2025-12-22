@@ -31,11 +31,30 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           animation: 'none',
+          gestureEnabled: true,
         }}
       >
-        <Stack.Screen key="tracks" name="tracks" />
-        <Stack.Screen key="record" name="record" />
-        <Stack.Screen key="browse" name="browse" />
+        <Stack.Screen 
+          key="tracks" 
+          name="tracks"
+          options={{
+            animation: 'none',
+          }}
+        />
+        <Stack.Screen 
+          key="record" 
+          name="record"
+          options={{
+            animation: 'none',
+          }}
+        />
+        <Stack.Screen 
+          key="browse" 
+          name="browse"
+          options={{
+            animation: 'none',
+          }}
+        />
       </Stack>
       <FloatingTabBar tabs={tabs} />
     </>
