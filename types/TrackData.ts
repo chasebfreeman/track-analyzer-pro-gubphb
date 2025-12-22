@@ -17,6 +17,7 @@ export interface TrackReading {
   date: string;
   time: string;
   timestamp: number;
+  classCurrentlyRunning?: string;
   leftLane: LaneReading;
   rightLane: LaneReading;
 }

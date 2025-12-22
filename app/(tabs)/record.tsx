@@ -27,6 +27,7 @@ export default function RecordScreen() {
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [showTrackPicker, setShowTrackPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [classCurrentlyRunning, setClassCurrentlyRunning] = useState('');
 
   const [leftLane, setLeftLane] = useState<LaneReading>({
     trackTemp: '',
@@ -127,6 +128,7 @@ export default function RecordScreen() {
       date: now.toLocaleDateString(),
       time: now.toLocaleTimeString(),
       timestamp: now.getTime(),
+      classCurrentlyRunning: classCurrentlyRunning,
       leftLane,
       rightLane,
     };
@@ -137,6 +139,7 @@ export default function RecordScreen() {
         {
           text: 'OK',
           onPress: () => {
+            setClassCurrentlyRunning('');
             setLeftLane({
               trackTemp: '',
               uvIndex: '',
@@ -366,6 +369,18 @@ export default function RecordScreen() {
 
         {selectedTrack && (
           <>
+            <View style={styles.classSection}>
+              <Text style={styles.label}>Class Currently Running</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., Pro Stock, Super Comp, etc."
+                placeholderTextColor={colors.textSecondary}
+                value={classCurrentlyRunning}
+                onChangeText={setClassCurrentlyRunning}
+                returnKeyType="next"
+              />
+            </View>
+
             {renderLaneInputs(leftLane, setLeftLane, 'Left Lane', 'left')}
             {renderLaneInputs(rightLane, setRightLane, 'Right Lane', 'right')}
 
@@ -468,6 +483,14 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       textAlign: 'center',
       paddingVertical: 12,
       color: colors.textSecondary,
+    },
+    classSection: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+      elevation: 2,
     },
     laneSection: {
       backgroundColor: colors.card,

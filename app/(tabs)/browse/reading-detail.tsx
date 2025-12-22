@@ -239,6 +239,13 @@ export default function ReadingDetailScreen() {
           </View>
         </View>
 
+        {reading.classCurrentlyRunning && (
+          <View style={styles.classSection}>
+            <Text style={styles.classSectionTitle}>Class Currently Running</Text>
+            <Text style={styles.classValue}>{reading.classCurrentlyRunning}</Text>
+          </View>
+        )}
+
         {renderLaneData(reading.leftLane, 'Left Lane')}
         {renderLaneData(reading.rightLane, 'Right Lane')}
       </ScrollView>
@@ -312,6 +319,25 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     dateTimeText: {
       fontSize: 16,
+      color: colors.text,
+    },
+    classSection: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+      elevation: 2,
+    },
+    classSectionTitle: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    classValue: {
+      fontSize: 18,
+      fontWeight: '600',
       color: colors.text,
     },
     laneSection: {
