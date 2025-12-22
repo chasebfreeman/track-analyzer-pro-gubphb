@@ -97,11 +97,16 @@ export default function TracksScreen() {
 
   const handleTrackPress = useCallback((track: Track) => {
     console.log('Track pressed:', track.name, 'ID:', track.id);
-    // Use replace instead of push to avoid navigation stack issues
-    router.replace({
-      pathname: '/(tabs)/record',
-      params: { trackId: track.id, trackName: track.name },
-    });
+    try {
+      // Use push instead of replace to maintain proper navigation stack
+      router.push({
+        pathname: '/(tabs)/record',
+        params: { trackId: track.id, trackName: track.name },
+      });
+      console.log('Navigation initiated successfully');
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
   }, [router]);
 
   return (
@@ -174,11 +179,12 @@ export default function TracksScreen() {
         ) : (
           <View style={styles.tracksList}>
             {tracks.map((track, index) => (
-              <React.Fragment key={index}>
+              <React.Fragment key={track.id}>
                 <TouchableOpacity
                   style={styles.trackCard}
                   onPress={() => handleTrackPress(track)}
                   activeOpacity={0.7}
+                  disabled={false}
                 >
                   <View style={styles.trackInfo}>
                     <View style={styles.trackIcon}>

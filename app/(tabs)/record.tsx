@@ -12,7 +12,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
-import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '@/styles/commonStyles';
 import { StorageService } from '@/utils/storage';
@@ -21,6 +21,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 
 export default function RecordScreen() {
   const params = useLocalSearchParams();
+  const router = useRouter();
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [showTrackPicker, setShowTrackPicker] = useState(false);
@@ -325,7 +326,7 @@ export default function RecordScreen() {
                 </Text>
               ) : (
                 tracks.map((track, index) => (
-                  <React.Fragment key={index}>
+                  <React.Fragment key={track.id}>
                     <TouchableOpacity
                       style={[
                         styles.trackOption,
