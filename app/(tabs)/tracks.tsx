@@ -171,17 +171,17 @@ export default function TracksScreen() {
     console.log('Track pressed:', track.name, 'ID:', track.id, 'Year:', selectedYear);
     try {
       router.push({
-        pathname: '/(tabs)/record',
+        pathname: '/(tabs)/browse',
         params: { 
           trackId: track.id, 
           trackName: track.name,
           year: selectedYear.toString(),
         },
       });
-      console.log('Navigation initiated successfully');
+      console.log('Navigation to browse screen initiated successfully');
     } catch (error) {
       console.error('Navigation error:', error);
-      Alert.alert('Navigation Error', 'Failed to navigate to record screen. Please try again.');
+      Alert.alert('Navigation Error', 'Failed to navigate to browse screen. Please try again.');
     }
   }, [router, selectedYear]);
 
