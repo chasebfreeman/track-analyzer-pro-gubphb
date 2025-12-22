@@ -20,7 +20,8 @@ import { IconSymbol } from '@/components/IconSymbol';
 export default function TracksScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const [tracks, setTracks] = useState<Track[]>([]);
+  const [allTracks, setAllTracks] = useState<Track[]>([]);
+  const [filteredTracks, setFilteredTracks] = useState<Track[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [trackName, setTrackName] = useState('');
   const [trackLocation, setTrackLocation] = useState('');
@@ -42,14 +43,40 @@ export default function TracksScreen() {
     }, [])
   );
 
+  useEffect(() => {
+    console.log('Selected year changed to:', selectedYear);
+    filterTracksByYear();
+  }, [selectedYear, allTracks]);
+
   const loadTracks = async () => {
     console.log('Loading tracks...');
     try {
       const loadedTracks = await StorageService.getTracks();
       console.log('Loaded tracks count:', loadedTracks.length);
-      setTracks(loadedTracks.sort((a, b) => b.createdAt - a.createdAt));
+      setAllTracks(loadedTracks.sort((a, b) => b.createdAt - a.createdAt));
     } catch (error) {
       console.error('Error loading tracks:', error);
+    }
+  };
+
+  const filterTracksByYear = async () => {
+    console.log('Filtering tracks for year:', selectedYear);
+    try {
+      // Get all tracks that have readings in the selected year
+      const tracksWithReadings: Track[] = [];
+      
+      for (const track of allTracks) {
+        const yearsForTrack = await StorageService.getAvailableYearsForTrack(track.id);
+        if (yearsForTrack.includes(selectedYear)) {
+          tracksWithReadings.push(track);
+        }
+      }
+      
+      console.log('Tracks with readings in', selectedYear, ':', tracksWithReadings.length);
+      setFilteredTracks(tracksWithReadings);
+    } catch (error) {
+      console.error('Error filtering tracks by year:', error);
+      setFilteredTracks([]);
     }
   };
 
@@ -447,7 +474,7 @@ export default function TracksScreen() {
           </View>
         )}
 
-        {tracks.length === 0 ? (
+        {filteredTracks.length === 0 ? (
           <View style={styles.emptyState}>
             <IconSymbol
               ios_icon_name="map"
@@ -456,12 +483,15 @@ export default function TracksScreen() {
               color={colors.textSecondary}
             />
             <Text style={styles.emptyText}>
-              No tracks yet. Add your first track to get started!
+              {allTracks.length === 0 
+                ? 'No tracks yet. Add your first track to get started!'
+                : `No tracks with readings in ${selectedYear}. Select a different year or add new readings.`
+              }
             </Text>
           </View>
         ) : (
           <View style={styles.tracksList}>
-            {tracks.map((track, index) => (
+            {filteredTracks.map((track, index) => (
               <React.Fragment key={track.id}>
                 <TouchableOpacity
                   style={styles.trackCard}
