@@ -77,17 +77,24 @@ export default function RecordScreen() {
     loadAvailableYears();
   }, []);
 
+  // Extract specific param values to avoid infinite re-renders
+  const editModeParam = params.editMode as string | undefined;
+  const readingIdParam = params.readingId as string | undefined;
+  const trackIdParam = params.trackId as string | undefined;
+  const yearParam = params.year as string | undefined;
+
   // Handle focus events separately
   useFocusEffect(
     React.useCallback(() => {
       console.log('Record screen focused');
-      console.log('Params:', JSON.stringify(params));
+      console.log('Edit mode param:', editModeParam);
+      console.log('Reading ID param:', readingIdParam);
 
       // Check if we're in edit mode
-      if (params.editMode === 'true' && params.readingId) {
+      if (editModeParam === 'true' && readingIdParam) {
         console.log('Edit mode detected, loading reading data');
         setEditMode(true);
-        setEditingReadingId(params.readingId as string);
+        setEditingReadingId(readingIdParam);
         
         // Load the reading data from params
         setClassCurrentlyRunning((params.classCurrentlyRunning as string) || '');
@@ -122,29 +129,29 @@ export default function RecordScreen() {
         setEditMode(false);
         setEditingReadingId(null);
       }
-    }, [params])
+    }, [editModeParam, readingIdParam])
   );
 
   useEffect(() => {
-    if (params.trackId && tracks.length > 0) {
-      console.log('Attempting to select track with ID:', params.trackId);
-      const track = tracks.find((t) => t.id === params.trackId);
+    if (trackIdParam && tracks.length > 0) {
+      console.log('Attempting to select track with ID:', trackIdParam);
+      const track = tracks.find((t) => t.id === trackIdParam);
       if (track) {
         console.log('Auto-selecting track:', track.name);
         setSelectedTrack(track);
         setShowTrackPicker(false);
       } else {
-        console.log('Track not found with id:', params.trackId);
+        console.log('Track not found with id:', trackIdParam);
         console.log('Available track IDs:', tracks.map(t => t.id));
       }
     }
     
-    if (params.year) {
-      const year = parseInt(params.year as string);
+    if (yearParam) {
+      const year = parseInt(yearParam);
       console.log('Setting year from params:', year);
       setSelectedYear(year);
     }
-  }, [params.trackId, params.year, tracks]);
+  }, [trackIdParam, yearParam, tracks]);
 
   const loadAvailableYears = async () => {
     try {
