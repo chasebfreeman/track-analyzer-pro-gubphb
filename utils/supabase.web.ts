@@ -87,18 +87,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: false,
     flowType: 'pkce',
   },
-  global: {
-    fetch: (url, options = {}) => {
-      // Add timeout to all fetch requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      return fetch(url, {
-        ...options,
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeoutId));
-    },
-  },
 });
 
 console.log('Supabase client initialized (web)');

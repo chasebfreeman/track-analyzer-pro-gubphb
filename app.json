@@ -1,8 +1,7 @@
-
 {
   "expo": {
     "name": "Track Analyzer Pro",
-    "slug": "track-analyzer-pro",
+    "slug": "Track Analyzer Pro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -44,5 +43,6 @@
     "extra": {
       "router": {}
     }
-  }
+  },
+  "scheme": "Track Analyzer Pro"
 }
