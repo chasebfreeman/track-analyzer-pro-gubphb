@@ -16,6 +16,7 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -84,55 +85,63 @@ export default function RootLayout() {
       <ThemeProvider
         value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
       >
-        <WidgetProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-              }}
-            >
-              <Stack.Screen 
-                name="index" 
-                options={{ 
-                  headerShown: false,
-                }} 
-              />
-              <Stack.Screen 
-                name="(tabs)" 
-                options={{ 
-                  headerShown: false,
-                }} 
-              />
-              <Stack.Screen
-                name="modal"
-                options={{
-                  presentation: "modal",
-                  title: "Standard Modal",
-                  headerShown: true,
-                }}
-              />
-              <Stack.Screen
-                name="formsheet"
-                options={{
-                  presentation: "formSheet",
-                  title: "Form Sheet Modal",
-                  sheetGrabberVisible: true,
-                  sheetAllowedDetents: [0.5, 0.8, 1.0],
-                  sheetCornerRadius: 20,
-                  headerShown: true,
-                }}
-              />
-              <Stack.Screen
-                name="transparent-modal"
-                options={{
-                  presentation: "transparentModal",
+        <AuthProvider>
+          <WidgetProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <Stack
+                screenOptions={{
                   headerShown: false,
                 }}
-              />
-            </Stack>
-            <SystemBars style={"auto"} />
-          </GestureHandlerRootView>
-        </WidgetProvider>
+              >
+                <Stack.Screen 
+                  name="index" 
+                  options={{ 
+                    headerShown: false,
+                  }} 
+                />
+                <Stack.Screen 
+                  name="auth" 
+                  options={{ 
+                    headerShown: false,
+                  }} 
+                />
+                <Stack.Screen 
+                  name="(tabs)" 
+                  options={{ 
+                    headerShown: false,
+                  }} 
+                />
+                <Stack.Screen
+                  name="modal"
+                  options={{
+                    presentation: "modal",
+                    title: "Standard Modal",
+                    headerShown: true,
+                  }}
+                />
+                <Stack.Screen
+                  name="formsheet"
+                  options={{
+                    presentation: "formSheet",
+                    title: "Form Sheet Modal",
+                    sheetGrabberVisible: true,
+                    sheetAllowedDetents: [0.5, 0.8, 1.0],
+                    sheetCornerRadius: 20,
+                    headerShown: true,
+                  }}
+                />
+                <Stack.Screen
+                  name="transparent-modal"
+                  options={{
+                    presentation: "transparentModal",
+                    headerShown: false,
+                  }}
+                />
+              </Stack>
+              <SystemBars style={"auto"} />
+            </GestureHandlerRootView>
+          </WidgetProvider>
+        </AuthProvider>
       </ThemeProvider>
     </>
   );
