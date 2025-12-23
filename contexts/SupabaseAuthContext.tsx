@@ -50,11 +50,15 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       if (supabaseConfigured) {
         setIsSupabaseEnabled(true);
         
-        // For web, use a non-blocking approach
+        // For web, use a completely non-blocking approach
         if (Platform.OS === 'web') {
           console.log('SupabaseAuthContext: Web platform - using non-blocking initialization');
           
-          // Set up auth listener immediately
+          // Mark as loaded immediately so the app can render
+          setIsLoading(false);
+          console.log('SupabaseAuthContext: Web initialization complete (non-blocking)');
+
+          // Set up auth listener immediately (non-blocking)
           const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             console.log('SupabaseAuthContext: Auth state changed:', _event);
             setSession(session);
@@ -62,13 +66,14 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
             setIsAuthenticated(!!session);
           });
 
-          // Mark as loaded immediately so the app can render
-          setIsLoading(false);
-          console.log('SupabaseAuthContext: Web initialization complete (non-blocking)');
+          // Try to get session in the background with a short timeout
+          const sessionTimeout = setTimeout(() => {
+            console.log('SupabaseAuthContext: Session fetch timeout, continuing without session');
+          }, 3000);
 
-          // Try to get session in the background
           supabase.auth.getSession()
             .then(({ data: { session: initialSession }, error }) => {
+              clearTimeout(sessionTimeout);
               if (error) {
                 console.error('SupabaseAuthContext: Error getting session:', error);
                 return;
@@ -83,6 +88,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
               }
             })
             .catch((error) => {
+              clearTimeout(sessionTimeout);
               console.error('SupabaseAuthContext: Error getting session:', error);
             });
 
@@ -102,6 +108,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       console.error('SupabaseAuthContext: Error during initialization:', error);
       // Fallback to local auth if Supabase fails
       setIsSupabaseEnabled(false);
+      setIsLoading(false);
       await initializeLocalAuth();
     }
   };

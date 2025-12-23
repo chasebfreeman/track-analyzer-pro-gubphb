@@ -8,27 +8,37 @@ import { useEffect, useState } from 'react';
 export default function Index() {
   const { isAuthenticated, isLoading, isPinSetup, isSupabaseEnabled } = useSupabaseAuth();
   const [showLoading, setShowLoading] = useState(true);
+  const [forceRedirect, setForceRedirect] = useState(false);
 
   useEffect(() => {
     console.log('Index: Auth state:', {
       isAuthenticated,
       isLoading,
       isPinSetup,
-      isSupabaseEnabled
+      isSupabaseEnabled,
+      platform: Platform.OS
     });
 
     // On web, don't show loading for too long
     if (Platform.OS === 'web') {
       const timer = setTimeout(() => {
-        if (isLoading) {
-          console.log('Index: Loading timeout on web, proceeding anyway');
-          setShowLoading(false);
-        }
-      }, 2000);
+        console.log('Index: Loading timeout on web, forcing redirect');
+        setShowLoading(false);
+        setForceRedirect(true);
+      }, 1500);
 
       return () => clearTimeout(timer);
     }
   }, [isAuthenticated, isLoading, isPinSetup, isSupabaseEnabled]);
+
+  // If we're forcing redirect on web, go to login
+  if (forceRedirect && Platform.OS === 'web') {
+    console.log('Index: Force redirecting to login (web timeout)');
+    if (isSupabaseEnabled) {
+      return <Redirect href="/auth/supabase-login" />;
+    }
+    return <Redirect href="/auth/setup-pin" />;
+  }
 
   // On web, if loading takes too long, proceed anyway
   if (isLoading && showLoading) {
