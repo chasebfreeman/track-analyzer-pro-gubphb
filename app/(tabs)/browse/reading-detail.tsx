@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
-import { StorageService } from '@/utils/storage';
+import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import { TrackReading, Track } from '@/types/TrackData';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -29,13 +29,13 @@ export default function ReadingDetailScreen() {
 
   const loadReading = async () => {
     try {
-      const readings = await StorageService.getReadings();
+      const readings = await SupabaseStorageService.getReadings();
       const foundReading = readings.find((r) => r.id === params.readingId);
       if (foundReading) {
         setReading(foundReading);
         
         // Load the track information
-        const tracks = await StorageService.getTracks();
+        const tracks = await SupabaseStorageService.getTracks();
         const foundTrack = tracks.find((t) => t.id === foundReading.trackId);
         if (foundTrack) {
           setTrack(foundTrack);
@@ -117,7 +117,7 @@ export default function ReadingDetailScreen() {
     if (!reading) return;
 
     try {
-      await StorageService.deleteReading(reading.id);
+      await SupabaseStorageService.deleteReading(reading.id);
       router.back();
     } catch (error) {
       console.error('Error deleting reading:', error);

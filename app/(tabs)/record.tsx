@@ -15,7 +15,7 @@ import {
 import { useLocalSearchParams, useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useThemeColors } from '@/styles/commonStyles';
-import { StorageService } from '@/utils/storage';
+import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import { Track, TrackReading, LaneReading } from '@/types/TrackData';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -63,7 +63,7 @@ export default function RecordScreen() {
       setIsLoading(true);
       console.log('Loading tracks in RecordScreen...');
       try {
-        const loadedTracks = await StorageService.getTracks();
+        const loadedTracks = await SupabaseStorageService.getTracks();
         console.log('Loaded tracks:', loadedTracks.length);
         setTracks(loadedTracks.sort((a, b) => a.name.localeCompare(b.name)));
       } catch (error) {
@@ -155,7 +155,7 @@ export default function RecordScreen() {
 
   const loadAvailableYears = async () => {
     try {
-      const years = await StorageService.getAvailableYears();
+      const years = await SupabaseStorageService.getAvailableYears();
       const currentYear = new Date().getFullYear();
       
       // Create a comprehensive list of years from 2024 to current year + 1
@@ -224,7 +224,7 @@ export default function RecordScreen() {
     console.log(editMode ? 'Updating reading:' : 'Saving new reading:', reading.id);
 
     try {
-      await StorageService.saveReading(reading);
+      await SupabaseStorageService.saveReading(reading);
       
       const successMessage = editMode 
         ? `Reading updated successfully for ${selectedYear}!`

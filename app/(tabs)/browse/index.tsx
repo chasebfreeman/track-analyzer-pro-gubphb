@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
-import { StorageService } from '@/utils/storage';
+import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import { Track, TrackReading, DayReadings } from '@/types/TrackData';
 import { IconSymbol } from '@/components/IconSymbol';
 import DailyReadingChart from '@/components/DailyReadingChart';
@@ -58,7 +58,7 @@ export default function BrowseScreen() {
 
   const loadTracks = async () => {
     console.log('Loading tracks in BrowseScreen...');
-    const loadedTracks = await StorageService.getTracks();
+    const loadedTracks = await SupabaseStorageService.getTracks();
     console.log('Loaded tracks:', loadedTracks.length);
     setAllTracks(loadedTracks.sort((a, b) => a.name.localeCompare(b.name)));
   };
@@ -68,7 +68,7 @@ export default function BrowseScreen() {
     const tracksWithReadings: Track[] = [];
     
     for (const track of allTracks) {
-      const trackReadings = await StorageService.getReadingsByTrackAndYear(track.id, selectedYear);
+      const trackReadings = await SupabaseStorageService.getReadingsByTrackAndYear(track.id, selectedYear);
       if (trackReadings.length > 0) {
         tracksWithReadings.push(track);
       }
@@ -87,7 +87,7 @@ export default function BrowseScreen() {
 
   const loadAllAvailableYears = async () => {
     try {
-      const years = await StorageService.getAvailableYears();
+      const years = await SupabaseStorageService.getAvailableYears();
       const currentYear = new Date().getFullYear();
       
       const allYears = new Set<number>();
@@ -112,7 +112,7 @@ export default function BrowseScreen() {
 
   const loadReadings = async (trackId: string, year: number) => {
     console.log('Loading readings for track:', trackId, 'year:', year);
-    const trackReadings = await StorageService.getReadingsByTrackAndYear(trackId, year);
+    const trackReadings = await SupabaseStorageService.getReadingsByTrackAndYear(trackId, year);
     console.log('Found readings:', trackReadings.length);
     const sorted = trackReadings.sort((a, b) => b.timestamp - a.timestamp);
     setReadings(sorted);
@@ -135,7 +135,7 @@ export default function BrowseScreen() {
 
   const loadAllTrackReadings = async (trackId: string) => {
     console.log('Loading all readings for track:', trackId);
-    const trackReadings = await StorageService.getReadingsByTrack(trackId);
+    const trackReadings = await SupabaseStorageService.getReadingsByTrack(trackId);
     console.log('Found all readings:', trackReadings.length);
     setAllTrackReadings(trackReadings);
   };

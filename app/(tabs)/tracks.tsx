@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
-import { StorageService } from '@/utils/storage';
+import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import { Track } from '@/types/TrackData';
 import { IconSymbol } from '@/components/IconSymbol';
 
@@ -51,7 +51,7 @@ export default function TracksScreen() {
   const loadTracks = async () => {
     console.log('Loading tracks...');
     try {
-      const loadedTracks = await StorageService.getTracks();
+      const loadedTracks = await SupabaseStorageService.getTracks();
       console.log('Loaded tracks count:', loadedTracks.length);
       setAllTracks(loadedTracks.sort((a, b) => b.createdAt - a.createdAt));
     } catch (error) {
@@ -66,7 +66,7 @@ export default function TracksScreen() {
       const tracksToShow: Track[] = [];
       
       for (const track of allTracks) {
-        const yearsForTrack = await StorageService.getAvailableYearsForTrack(track.id);
+        const yearsForTrack = await SupabaseStorageService.getAvailableYearsForTrack(track.id);
         
         // Only show track if it has readings in the selected year
         if (yearsForTrack.includes(selectedYear)) {
@@ -85,7 +85,7 @@ export default function TracksScreen() {
 
   const loadAvailableYears = async () => {
     try {
-      const years = await StorageService.getAvailableYears();
+      const years = await SupabaseStorageService.getAvailableYears();
       const currentYear = new Date().getFullYear();
       
       // Create a comprehensive list of years from 2024 to current year + 1
@@ -127,7 +127,7 @@ export default function TracksScreen() {
     };
 
     try {
-      await StorageService.saveTrack(newTrack);
+      await SupabaseStorageService.saveTrack(newTrack);
       setTrackName('');
       setTrackLocation('');
       setShowAddForm(false);
@@ -151,7 +151,7 @@ export default function TracksScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await StorageService.deleteTrack(track.id);
+              await SupabaseStorageService.deleteTrack(track.id);
               loadTracks();
               loadAvailableYears();
               Alert.alert('Success', 'Track deleted successfully');

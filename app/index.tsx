@@ -1,14 +1,11 @@
 
-import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { colors } from '@/styles/commonStyles';
 
 export default function Index() {
-  const { isAuthenticated, isLoading, isPinSetup } = useAuth();
-
-  console.log('Index screen - Auth state:', { isAuthenticated, isLoading, isPinSetup });
+  const { isAuthenticated, isLoading, isPinSetup, isSupabaseEnabled } = useSupabaseAuth();
 
   if (isLoading) {
     return (
@@ -18,18 +15,24 @@ export default function Index() {
     );
   }
 
+  // If Supabase is enabled, use Supabase auth
+  if (isSupabaseEnabled) {
+    if (isAuthenticated) {
+      return <Redirect href="/(tabs)/tracks" />;
+    }
+    return <Redirect href="/auth/supabase-login" />;
+  }
+
+  // Otherwise use PIN auth
   if (!isPinSetup) {
-    console.log('No PIN setup - redirecting to setup-pin');
     return <Redirect href="/auth/setup-pin" />;
   }
 
-  if (!isAuthenticated) {
-    console.log('Not authenticated - redirecting to login');
-    return <Redirect href="/auth/login" />;
+  if (isAuthenticated) {
+    return <Redirect href="/(tabs)/tracks" />;
   }
 
-  console.log('Authenticated - redirecting to tracks');
-  return <Redirect href="/(tabs)/tracks" />;
+  return <Redirect href="/auth/login" />;
 }
 
 const styles = StyleSheet.create({
