@@ -6,7 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
-import { useColorScheme, View, Text, StyleSheet } from 'react-native';
+import { useColorScheme, View, Text, StyleSheet, Platform } from 'react-native';
 import { SupabaseAuthProvider } from '@/contexts/SupabaseAuthContext';
 import { colors } from '@/styles/commonStyles';
 
@@ -22,14 +22,17 @@ export default function RootLayout() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    console.log('RootLayout: Component mounted');
+    console.log('RootLayout: Component mounted, Platform:', Platform.OS);
     setMounted(true);
     
-    // Safety timeout - if app doesn't load in 10 seconds, show error
+    // Shorter timeout for web
+    const timeoutDuration = Platform.OS === 'web' ? 8000 : 15000;
+    
+    // Safety timeout - if app doesn't load in time, show error
     const safetyTimeout = setTimeout(() => {
       console.error('RootLayout: App initialization timeout');
       setError('App initialization timeout. Please refresh the page.');
-    }, 10000);
+    }, timeoutDuration);
 
     return () => {
       clearTimeout(safetyTimeout);
@@ -46,24 +49,26 @@ export default function RootLayout() {
   }, [loaded]);
 
   useEffect(() => {
-    // Global error handler
-    const errorHandler = (event: ErrorEvent) => {
-      console.error('RootLayout: Global error:', event.error || event.message);
-      setError(event.message || 'An unexpected error occurred');
-    };
-
-    const unhandledRejectionHandler = (event: PromiseRejectionEvent) => {
-      console.error('RootLayout: Unhandled promise rejection:', event.reason);
-      setError('An unexpected error occurred');
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('error', errorHandler);
-      window.addEventListener('unhandledrejection', unhandledRejectionHandler);
-      return () => {
-        window.removeEventListener('error', errorHandler);
-        window.removeEventListener('unhandledrejection', unhandledRejectionHandler);
+    // Global error handler for web
+    if (Platform.OS === 'web') {
+      const errorHandler = (event: ErrorEvent) => {
+        console.error('RootLayout: Global error:', event.error || event.message);
+        setError(event.message || 'An unexpected error occurred');
       };
+
+      const unhandledRejectionHandler = (event: PromiseRejectionEvent) => {
+        console.error('RootLayout: Unhandled promise rejection:', event.reason);
+        setError('An unexpected error occurred');
+      };
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('error', errorHandler);
+        window.addEventListener('unhandledrejection', unhandledRejectionHandler);
+        return () => {
+          window.removeEventListener('error', errorHandler);
+          window.removeEventListener('unhandledrejection', unhandledRejectionHandler);
+        };
+      }
     }
   }, []);
 

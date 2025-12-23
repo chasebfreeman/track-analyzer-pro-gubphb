@@ -33,28 +33,12 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(true);
   const [isPinSetup, setIsPinSetup] = useState(false);
   const [isSupabaseEnabled, setIsSupabaseEnabled] = useState(false);
-  const [initializationComplete, setInitializationComplete] = useState(false);
 
   useEffect(() => {
     console.log('SupabaseAuthContext: Initializing... Platform:', Platform.OS);
     
-    // Set a hard timeout to ensure we don't hang forever
-    const hardTimeout = setTimeout(() => {
-      if (!initializationComplete) {
-        console.error('SupabaseAuthContext: Hard timeout reached, forcing local auth');
-        setIsSupabaseEnabled(false);
-        initializeLocalAuth();
-      }
-    }, 5000);
-
-    initializeAuth().finally(() => {
-      clearTimeout(hardTimeout);
-      setInitializationComplete(true);
-    });
-
-    return () => {
-      clearTimeout(hardTimeout);
-    };
+    // Immediately start initialization
+    initializeAuth();
   }, []);
 
   const initializeAuth = async () => {
@@ -82,13 +66,20 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
     try {
       console.log('SupabaseAuthContext: Initializing Supabase auth...');
       
-      // Try to get session with a short timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      // For web, use a shorter timeout
+      const timeoutDuration = Platform.OS === 'web' ? 3000 : 5000;
+      
+      // Try to get session with a timeout
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session fetch timeout')), timeoutDuration)
+      );
 
       try {
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        clearTimeout(timeoutId);
+        const { data: { session: initialSession }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
 
         if (error) {
           console.error('SupabaseAuthContext: Error getting session:', error);
@@ -115,8 +106,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
           subscription.unsubscribe();
         };
       } catch (sessionError) {
-        clearTimeout(timeoutId);
-        console.error('SupabaseAuthContext: Session fetch failed:', sessionError);
+        console.error('SupabaseAuthContext: Session fetch failed or timed out:', sessionError);
         throw sessionError;
       }
     } catch (error) {
