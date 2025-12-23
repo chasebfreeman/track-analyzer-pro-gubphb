@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/utils/supabase';
 import { AuthService } from '@/utils/authService';
 import { Session, User } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 
 interface SupabaseAuthContextType {
   // Supabase auth
@@ -34,7 +35,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
   const [isSupabaseEnabled, setIsSupabaseEnabled] = useState(false);
 
   useEffect(() => {
-    console.log('SupabaseAuthContext: Initializing...');
+    console.log('SupabaseAuthContext: Initializing... Platform:', Platform.OS);
     initializeAuth();
   }, []);
 
@@ -53,6 +54,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
     } catch (error) {
       console.error('SupabaseAuthContext: Error during initialization:', error);
       // Fallback to local auth if Supabase fails
+      setIsSupabaseEnabled(false);
       await initializeLocalAuth();
     }
   };
@@ -67,35 +69,41 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
         setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
       );
 
-      const { data: { session: initialSession }, error } = await Promise.race([
+      const result = await Promise.race([
         sessionPromise,
         timeoutPromise
       ]) as any;
 
-      if (error) {
-        console.error('SupabaseAuthContext: Error getting session:', error);
-        throw error;
+      if (result && result.data) {
+        const { data: { session: initialSession }, error } = result;
+
+        if (error) {
+          console.error('SupabaseAuthContext: Error getting session:', error);
+          throw error;
+        }
+
+        console.log('SupabaseAuthContext: Initial session:', initialSession ? 'Found' : 'Not found');
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        setIsAuthenticated(!!initialSession);
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          console.log('SupabaseAuthContext: Auth state changed:', _event);
+          setSession(session);
+          setUser(session?.user ?? null);
+          setIsAuthenticated(!!session);
+        });
+
+        setIsLoading(false);
+        console.log('SupabaseAuthContext: Supabase auth initialized successfully');
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      } else {
+        throw new Error('Failed to get session');
       }
-
-      console.log('SupabaseAuthContext: Initial session:', initialSession ? 'Found' : 'Not found');
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-      setIsAuthenticated(!!initialSession);
-
-      // Listen for auth changes
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        console.log('SupabaseAuthContext: Auth state changed:', _event);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsAuthenticated(!!session);
-      });
-
-      setIsLoading(false);
-      console.log('SupabaseAuthContext: Supabase auth initialized successfully');
-
-      return () => {
-        subscription.unsubscribe();
-      };
     } catch (error) {
       console.error('SupabaseAuthContext: Error initializing Supabase auth:', error);
       // Fallback to local auth
@@ -116,6 +124,9 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       }
     } catch (error) {
       console.error('SupabaseAuthContext: Error checking PIN setup:', error);
+      // Even if there's an error, set isPinSetup to false so user can set it up
+      setIsPinSetup(false);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
       console.log('SupabaseAuthContext: Local auth initialized');
