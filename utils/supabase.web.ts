@@ -12,36 +12,67 @@ export const isSupabaseConfigured = () => {
   return configured;
 };
 
-// Simple localStorage wrapper with error handling
+// Simple localStorage wrapper with error handling and fallback
 const createStorageAdapter = () => {
+  // Check if localStorage is available
+  const isLocalStorageAvailable = () => {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return false;
+      }
+      // Test if we can actually use it
+      const testKey = '__supabase_test__';
+      window.localStorage.setItem(testKey, 'test');
+      window.localStorage.removeItem(testKey);
+      return true;
+    } catch (error) {
+      console.warn('localStorage not available:', error);
+      return false;
+    }
+  };
+
+  const hasLocalStorage = isLocalStorageAvailable();
+  console.log('localStorage available:', hasLocalStorage);
+
+  // In-memory fallback storage
+  const memoryStorage: { [key: string]: string } = {};
+
   return {
     getItem: (key: string) => {
       try {
-        if (typeof window !== 'undefined' && window.localStorage) {
+        if (hasLocalStorage) {
           const value = window.localStorage.getItem(key);
           return value;
+        } else {
+          return memoryStorage[key] || null;
         }
       } catch (error) {
-        console.error('Error getting item from localStorage:', error);
+        console.error('Error getting item from storage:', error);
+        return memoryStorage[key] || null;
       }
-      return null;
     },
     setItem: (key: string, value: string) => {
       try {
-        if (typeof window !== 'undefined' && window.localStorage) {
+        if (hasLocalStorage) {
           window.localStorage.setItem(key, value);
+        } else {
+          memoryStorage[key] = value;
         }
       } catch (error) {
-        console.error('Error setting item in localStorage:', error);
+        console.error('Error setting item in storage:', error);
+        memoryStorage[key] = value;
       }
     },
     removeItem: (key: string) => {
       try {
-        if (typeof window !== 'undefined' && window.localStorage) {
+        if (hasLocalStorage) {
           window.localStorage.removeItem(key);
+        } else {
+          delete memoryStorage[key];
         }
       } catch (error) {
-        console.error('Error removing item from localStorage:', error);
+        console.error('Error removing item from storage:', error);
+        delete memoryStorage[key];
       }
     },
   };

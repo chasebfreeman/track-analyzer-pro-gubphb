@@ -3,11 +3,70 @@
 const PIN_KEY = 'user_pin';
 const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
 
+// Check if localStorage is available
+const isLocalStorageAvailable = () => {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return false;
+    }
+    // Test if we can actually use it
+    const testKey = '__auth_test__';
+    window.localStorage.setItem(testKey, 'test');
+    window.localStorage.removeItem(testKey);
+    return true;
+  } catch (error) {
+    console.warn('localStorage not available:', error);
+    return false;
+  }
+};
+
+// In-memory fallback storage
+const memoryStorage: { [key: string]: string } = {};
+
+const getItem = (key: string): string | null => {
+  try {
+    if (isLocalStorageAvailable()) {
+      return localStorage.getItem(key);
+    } else {
+      return memoryStorage[key] || null;
+    }
+  } catch (error) {
+    console.error('Error getting item:', error);
+    return memoryStorage[key] || null;
+  }
+};
+
+const setItem = (key: string, value: string): void => {
+  try {
+    if (isLocalStorageAvailable()) {
+      localStorage.setItem(key, value);
+    } else {
+      memoryStorage[key] = value;
+    }
+  } catch (error) {
+    console.error('Error setting item:', error);
+    memoryStorage[key] = value;
+  }
+};
+
+const removeItem = (key: string): void => {
+  try {
+    if (isLocalStorageAvailable()) {
+      localStorage.removeItem(key);
+    } else {
+      delete memoryStorage[key];
+    }
+  } catch (error) {
+    console.error('Error removing item:', error);
+    delete memoryStorage[key];
+  }
+};
+
 export const AuthService = {
   // Check if PIN is set up
   async isPinSetup(): Promise<boolean> {
     try {
-      const pin = localStorage.getItem(PIN_KEY);
+      const pin = getItem(PIN_KEY);
       return pin !== null;
     } catch (error) {
       console.error('Error checking PIN setup:', error);
@@ -18,7 +77,7 @@ export const AuthService = {
   // Set up a new PIN
   async setupPin(pin: string): Promise<void> {
     try {
-      localStorage.setItem(PIN_KEY, pin);
+      setItem(PIN_KEY, pin);
       console.log('PIN setup successfully');
     } catch (error) {
       console.error('Error setting up PIN:', error);
@@ -29,7 +88,7 @@ export const AuthService = {
   // Verify PIN
   async verifyPin(pin: string): Promise<boolean> {
     try {
-      const storedPin = localStorage.getItem(PIN_KEY);
+      const storedPin = getItem(PIN_KEY);
       return storedPin === pin;
     } catch (error) {
       console.error('Error verifying PIN:', error);
@@ -44,7 +103,7 @@ export const AuthService = {
       if (!isValid) {
         return false;
       }
-      localStorage.setItem(PIN_KEY, newPin);
+      setItem(PIN_KEY, newPin);
       console.log('PIN changed successfully');
       return true;
     } catch (error) {
@@ -56,8 +115,8 @@ export const AuthService = {
   // Reset PIN (for development/testing - remove in production)
   async resetPin(): Promise<void> {
     try {
-      localStorage.removeItem(PIN_KEY);
-      localStorage.removeItem(BIOMETRIC_ENABLED_KEY);
+      removeItem(PIN_KEY);
+      removeItem(BIOMETRIC_ENABLED_KEY);
       console.log('PIN reset successfully');
     } catch (error) {
       console.error('Error resetting PIN:', error);

@@ -1,12 +1,13 @@
 
 import { Redirect } from 'expo-router';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Platform } from 'react-native';
 import { colors } from '@/styles/commonStyles';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Index() {
   const { isAuthenticated, isLoading, isPinSetup, isSupabaseEnabled } = useSupabaseAuth();
+  const [showLoading, setShowLoading] = useState(true);
 
   useEffect(() => {
     console.log('Index: Auth state:', {
@@ -15,9 +16,22 @@ export default function Index() {
       isPinSetup,
       isSupabaseEnabled
     });
+
+    // On web, don't show loading for too long
+    if (Platform.OS === 'web') {
+      const timer = setTimeout(() => {
+        if (isLoading) {
+          console.log('Index: Loading timeout on web, proceeding anyway');
+          setShowLoading(false);
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
   }, [isAuthenticated, isLoading, isPinSetup, isSupabaseEnabled]);
 
-  if (isLoading) {
+  // On web, if loading takes too long, proceed anyway
+  if (isLoading && showLoading) {
     console.log('Index: Loading...');
     return (
       <View style={styles.container}>

@@ -19,46 +19,23 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   const [error, setError] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     console.log('RootLayout: Component mounted, Platform:', Platform.OS);
-    setMounted(true);
     
-    // Much shorter timeout for web - if it doesn't load quickly, something is wrong
-    const timeoutDuration = Platform.OS === 'web' ? 3000 : 10000;
-    
-    // Safety timeout - if app doesn't load in time, show error
-    const safetyTimeout = setTimeout(() => {
-      console.error('RootLayout: App initialization timeout');
-      setError('App initialization timeout. Please refresh the page.');
-    }, timeoutDuration);
-
-    return () => {
-      clearTimeout(safetyTimeout);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (loaded) {
-      console.log('RootLayout: Fonts loaded, hiding splash screen');
-      SplashScreen.hideAsync().catch((err) => {
-        console.error('RootLayout: Error hiding splash screen:', err);
-      });
-    }
-  }, [loaded]);
-
-  useEffect(() => {
     // Global error handler for web
     if (Platform.OS === 'web') {
       const errorHandler = (event: ErrorEvent) => {
         console.error('RootLayout: Global error:', event.error || event.message);
-        setError(event.message || 'An unexpected error occurred');
+        // Don't set error state for every error, only critical ones
+        if (event.message && event.message.includes('timeout')) {
+          setError(event.message || 'An unexpected error occurred');
+        }
       };
 
       const unhandledRejectionHandler = (event: PromiseRejectionEvent) => {
         console.error('RootLayout: Unhandled promise rejection:', event.reason);
-        setError('An unexpected error occurred');
+        // Don't set error state for promise rejections during initialization
       };
 
       if (typeof window !== 'undefined') {
@@ -72,8 +49,17 @@ export default function RootLayout() {
     }
   }, []);
 
-  if (!loaded || !mounted) {
-    console.log('RootLayout: Waiting for fonts to load or component to mount');
+  useEffect(() => {
+    if (loaded) {
+      console.log('RootLayout: Fonts loaded, hiding splash screen');
+      SplashScreen.hideAsync().catch((err) => {
+        console.error('RootLayout: Error hiding splash screen:', err);
+      });
+    }
+  }, [loaded]);
+
+  if (!loaded) {
+    console.log('RootLayout: Waiting for fonts to load');
     return null;
   }
 
