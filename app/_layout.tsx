@@ -25,8 +25,8 @@ export default function RootLayout() {
     console.log('RootLayout: Component mounted, Platform:', Platform.OS);
     setMounted(true);
     
-    // Shorter timeout for web
-    const timeoutDuration = Platform.OS === 'web' ? 8000 : 15000;
+    // Much shorter timeout for web - if it doesn't load quickly, something is wrong
+    const timeoutDuration = Platform.OS === 'web' ? 3000 : 10000;
     
     // Safety timeout - if app doesn't load in time, show error
     const safetyTimeout = setTimeout(() => {

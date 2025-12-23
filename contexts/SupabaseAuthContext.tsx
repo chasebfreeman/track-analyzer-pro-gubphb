@@ -37,9 +37,65 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     console.log('SupabaseAuthContext: Initializing... Platform:', Platform.OS);
     
-    // Immediately start initialization
-    initializeAuth();
+    // Use a faster initialization for web
+    if (Platform.OS === 'web') {
+      initializeAuthFast();
+    } else {
+      initializeAuth();
+    }
   }, []);
+
+  const initializeAuthFast = async () => {
+    try {
+      console.log('SupabaseAuthContext: Fast initialization for web...');
+      
+      // Check Supabase configuration synchronously
+      const supabaseConfigured = isSupabaseConfigured();
+      console.log('SupabaseAuthContext: Supabase configured:', supabaseConfigured);
+      
+      if (supabaseConfigured) {
+        setIsSupabaseEnabled(true);
+        
+        // Don't wait for session - just set up the listener
+        supabase.auth.getSession().then(({ data: { session: initialSession }, error }) => {
+          if (!error && initialSession) {
+            console.log('SupabaseAuthContext: Initial session found');
+            setSession(initialSession);
+            setUser(initialSession.user);
+            setIsAuthenticated(true);
+          } else {
+            console.log('SupabaseAuthContext: No initial session');
+          }
+        }).catch((error) => {
+          console.error('SupabaseAuthContext: Error getting session:', error);
+        });
+
+        // Set up auth listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+          console.log('SupabaseAuthContext: Auth state changed:', _event);
+          setSession(session);
+          setUser(session?.user ?? null);
+          setIsAuthenticated(!!session);
+        });
+
+        // Mark as loaded immediately
+        setIsLoading(false);
+        console.log('SupabaseAuthContext: Fast initialization complete');
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      } else {
+        // Fallback to local auth
+        setIsSupabaseEnabled(false);
+        await initializeLocalAuth();
+      }
+    } catch (error) {
+      console.error('SupabaseAuthContext: Error during fast initialization:', error);
+      setIsSupabaseEnabled(false);
+      await initializeLocalAuth();
+    }
+  };
 
   const initializeAuth = async () => {
     try {
@@ -66,8 +122,8 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
     try {
       console.log('SupabaseAuthContext: Initializing Supabase auth...');
       
-      // For web, use a shorter timeout
-      const timeoutDuration = Platform.OS === 'web' ? 3000 : 5000;
+      // For native, use a longer timeout
+      const timeoutDuration = 5000;
       
       // Try to get session with a timeout
       const sessionPromise = supabase.auth.getSession();

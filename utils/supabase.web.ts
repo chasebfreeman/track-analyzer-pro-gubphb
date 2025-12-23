@@ -19,7 +19,6 @@ const createStorageAdapter = () => {
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           const value = window.localStorage.getItem(key);
-          console.log('Storage getItem:', key, value ? 'found' : 'not found');
           return value;
         }
       } catch (error) {
@@ -31,7 +30,6 @@ const createStorageAdapter = () => {
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem(key, value);
-          console.log('Storage setItem:', key);
         }
       } catch (error) {
         console.error('Error setting item in localStorage:', error);
@@ -41,7 +39,6 @@ const createStorageAdapter = () => {
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.removeItem(key);
-          console.log('Storage removeItem:', key);
         }
       } catch (error) {
         console.error('Error removing item from localStorage:', error);
