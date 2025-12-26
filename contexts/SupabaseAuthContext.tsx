@@ -73,11 +73,11 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
           setIsAuthenticated(!!session);
         });
 
-        // Try to get session with a short timeout
+        // Try to get session with a very short timeout to not block UI
         try {
           const sessionPromise = supabase.auth.getSession();
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Session timeout')), 1000)
+            setTimeout(() => reject(new Error('Session timeout')), 500)
           );
           
           const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
@@ -96,7 +96,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
           console.log('SupabaseAuthContext: Session check timed out or failed, continuing without session');
         }
         
-        // Mark as done loading
+        // Mark as done loading immediately to unblock UI
         setIsLoading(false);
         console.log('SupabaseAuthContext: Supabase initialization complete');
 
