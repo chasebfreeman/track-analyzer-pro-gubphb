@@ -70,30 +70,6 @@ export default function TracksScreen() {
     }
   }, []);
 
-  const filterTracksByYear = useCallback(async () => {
-    console.log('Filtering tracks for year:', selectedYear);
-    try {
-      // Only show tracks that have readings in the selected year
-      const tracksToShow: Track[] = [];
-      
-      for (const track of allTracks) {
-        const yearsForTrack = await SupabaseStorageService.getAvailableYearsForTrack(track.id);
-        
-        // Only show track if it has readings in the selected year
-        if (yearsForTrack.includes(selectedYear)) {
-          tracksToShow.push(track);
-        }
-      }
-      
-      console.log('Tracks to show for', selectedYear, ':', tracksToShow.length);
-      console.log('Track names:', tracksToShow.map(t => t.name));
-      setFilteredTracks(tracksToShow);
-    } catch (error) {
-      console.error('Error filtering tracks by year:', error);
-      setFilteredTracks([]);
-    }
-  }, [selectedYear, allTracks]);
-
   useEffect(() => {
     console.log('TracksScreen mounted');
     loadTracks();
@@ -110,8 +86,33 @@ export default function TracksScreen() {
 
   useEffect(() => {
     console.log('Selected year changed to:', selectedYear);
-    filterTracksByYear();
-  }, [filterTracksByYear]);
+    
+    const filterTracks = async () => {
+      console.log('Filtering tracks for year:', selectedYear);
+      try {
+        // Only show tracks that have readings in the selected year
+        const tracksToShow: Track[] = [];
+        
+        for (const track of allTracks) {
+          const yearsForTrack = await SupabaseStorageService.getAvailableYearsForTrack(track.id);
+          
+          // Only show track if it has readings in the selected year
+          if (yearsForTrack.includes(selectedYear)) {
+            tracksToShow.push(track);
+          }
+        }
+        
+        console.log('Tracks to show for', selectedYear, ':', tracksToShow.length);
+        console.log('Track names:', tracksToShow.map(t => t.name));
+        setFilteredTracks(tracksToShow);
+      } catch (error) {
+        console.error('Error filtering tracks by year:', error);
+        setFilteredTracks([]);
+      }
+    };
+
+    filterTracks();
+  }, [selectedYear, allTracks]);
 
   const handleAddTrack = async () => {
     if (!trackName.trim()) {
