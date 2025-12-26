@@ -37,20 +37,8 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     console.log('SupabaseAuthContext: Initializing... Platform:', Platform.OS);
     
-    // Set a maximum timeout to prevent infinite loading
-    const maxLoadTimeout = setTimeout(() => {
-      console.log('SupabaseAuthContext: Max load timeout reached, forcing initialization complete');
-      setIsLoading(false);
-    }, 3000); // 3 seconds max
-
-    // Initialize immediately without blocking
-    initializeAuth().finally(() => {
-      clearTimeout(maxLoadTimeout);
-    });
-
-    return () => {
-      clearTimeout(maxLoadTimeout);
-    };
+    // Initialize auth asynchronously but don't block rendering
+    initializeAuth();
   }, []);
 
   const initializeAuth = async () => {
@@ -72,23 +60,30 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
           setIsAuthenticated(!!session);
         });
 
-        // Try to get session with a timeout
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve({ data: { session: null }, error: null }), 2000));
-        
-        const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
-        
-        if (result.error) {
-          console.error('SupabaseAuthContext: Error getting session:', result.error);
-        } else if (result.data?.session) {
-          console.log('SupabaseAuthContext: Initial session found');
-          setSession(result.data.session);
-          setUser(result.data.session.user);
-          setIsAuthenticated(true);
-        } else {
-          console.log('SupabaseAuthContext: No initial session');
+        // Try to get session with a short timeout
+        try {
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session timeout')), 1000)
+          );
+          
+          const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
+          
+          if (result.error) {
+            console.error('SupabaseAuthContext: Error getting session:', result.error);
+          } else if (result.data?.session) {
+            console.log('SupabaseAuthContext: Initial session found');
+            setSession(result.data.session);
+            setUser(result.data.session.user);
+            setIsAuthenticated(true);
+          } else {
+            console.log('SupabaseAuthContext: No initial session');
+          }
+        } catch (error) {
+          console.log('SupabaseAuthContext: Session check timed out or failed, continuing without session');
         }
         
+        // Mark as done loading
         setIsLoading(false);
         console.log('SupabaseAuthContext: Supabase initialization complete');
 
@@ -125,7 +120,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
-      console.log('SupabaseAuthContext: Local auth initialized');
+      console.log('SupabaseAuthContext: Local auth initialized, isLoading set to false');
     }
   };
 
@@ -238,6 +233,8 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       return false;
     }
   };
+
+  console.log('SupabaseAuthContext: Rendering provider, isLoading:', isLoading);
 
   return (
     <SupabaseAuthContext.Provider

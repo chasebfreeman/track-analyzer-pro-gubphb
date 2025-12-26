@@ -19,10 +19,11 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    console.log('RootLayout: Component mounted, Platform:', Platform.OS);
+    console.log('RootLayout: useEffect triggered, loaded:', loaded, 'error:', error, 'Platform:', Platform.OS);
     
     if (loaded || error) {
       console.log('RootLayout: Fonts loaded or error occurred, hiding splash screen');
+      // Hide splash screen immediately when fonts are loaded
       SplashScreen.hideAsync().catch((err) => {
         console.error('RootLayout: Error hiding splash screen:', err);
       });

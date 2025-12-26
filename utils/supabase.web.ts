@@ -1,4 +1,4 @@
-
+app is start
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase configuration
