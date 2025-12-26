@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "dev": "EXPO_NO_TELEMETRY=1 EXPO_NO_REDIRECT=1 expo start --localhost --no-tunnel",
-    "android": "EXPO_NO_TELEMETRY=1 EXPO_NO_REDIRECT=1 expo start --android --localhost --no-tunnel",
-    "ios": "EXPO_NO_TELEMETRY=1 EXPO_NO_REDIRECT=1 expo start --ios --localhost --no-tunnel",
+    "dev": "EXPO_NO_TELEMETRY=1 EXPO_NO_REDIRECT=1 expo start --clear",
+    "android": "EXPO_NO_TELEMETRY=1 EXPO_NO_REDIRECT=1 expo start --android",
+    "ios": "EXPO_NO_TELEMETRY=1 EXPO_NO_REDIRECT=1 expo start --ios",
     "web": "EXPO_NO_TELEMETRY=1 EXPO_NO_REDIRECT=1 expo start --web --localhost --no-tunnel",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
