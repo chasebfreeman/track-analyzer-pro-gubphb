@@ -57,6 +57,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
             setSession(session);
             setUser(session?.user ?? null);
             setIsAuthenticated(!!session);
+            setIsPinSetup(true); // If using Supabase, we don't need PIN
           });
           authSubscription = subscription;
 
@@ -73,16 +74,21 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
             
             if (result.error) {
               console.error('SupabaseAuthContext: Error getting session:', result.error);
+              setIsPinSetup(true); // Allow navigation to login
             } else if (result.data?.session) {
               console.log('SupabaseAuthContext: Initial session found');
               setSession(result.data.session);
               setUser(result.data.session.user);
               setIsAuthenticated(true);
+              setIsPinSetup(true);
             } else {
               console.log('SupabaseAuthContext: No initial session');
+              setIsPinSetup(true); // Allow navigation to login
             }
           } catch (error) {
             console.log('SupabaseAuthContext: Session check timed out or failed, continuing without session');
+            if (!mounted) return;
+            setIsPinSetup(true); // Allow navigation to login
           }
         } else {
           // Fallback to local auth
@@ -95,10 +101,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
             console.log('SupabaseAuthContext: PIN setup:', pinSetup);
             if (!mounted) return;
             setIsPinSetup(pinSetup);
-            
-            if (!pinSetup) {
-              setIsAuthenticated(false);
-            }
+            setIsAuthenticated(false); // User needs to authenticate with PIN
           } catch (error) {
             console.error('SupabaseAuthContext: Error checking PIN setup:', error);
             if (!mounted) return;
@@ -116,9 +119,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
           const pinSetup = await AuthService.isPinSetup();
           if (!mounted) return;
           setIsPinSetup(pinSetup);
-          if (!pinSetup) {
-            setIsAuthenticated(false);
-          }
+          setIsAuthenticated(false);
         } catch (err) {
           console.error('SupabaseAuthContext: Error in fallback:', err);
           if (!mounted) return;
@@ -128,12 +129,8 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       } finally {
         if (mounted) {
           console.log('SupabaseAuthContext: Initialization complete, setting isLoading to false');
-          // Add a small delay to ensure state is properly set before hiding loading
-          setTimeout(() => {
-            if (mounted) {
-              setIsLoading(false);
-            }
-          }, 100);
+          // Set loading to false immediately
+          setIsLoading(false);
         }
       }
     };

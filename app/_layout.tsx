@@ -1,58 +1,97 @@
 
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import 'react-native-reanimated';
-import { useColorScheme, Platform } from 'react-native';
-import { SupabaseAuthProvider } from '@/contexts/SupabaseAuthContext';
+import "react-native-reanimated";
+import React, { useEffect } from "react";
+import { useFonts } from "expo-font";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { SystemBars } from "react-native-edge-to-edge";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useColorScheme, Alert } from "react-native";
+import { useNetworkState } from "expo-network";
+import {
+  DarkTheme,
+  DefaultTheme,
+  Theme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { SupabaseAuthProvider } from "@/contexts/SupabaseAuthContext";
 
-// Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+  const networkState = useNetworkState();
+  const [loaded] = useFonts({
+    SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
-    console.log('RootLayout: useEffect triggered, loaded:', loaded, 'error:', error, 'Platform:', Platform.OS);
-    
-    if (loaded || error) {
-      console.log('RootLayout: Fonts loaded or error occurred');
-      // Give a small delay to ensure auth context initializes
-      setTimeout(() => {
-        setAppReady(true);
-        console.log('RootLayout: App ready, hiding splash screen');
-        SplashScreen.hideAsync().catch((err) => {
-          console.error('RootLayout: Error hiding splash screen:', err);
-        });
-      }, 100);
+    if (loaded) {
+      SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [loaded]);
 
-  // Don't render until fonts are loaded and app is ready
-  if (!appReady) {
-    console.log('RootLayout: Waiting for app to be ready');
+  React.useEffect(() => {
+    if (
+      !networkState.isConnected &&
+      networkState.isInternetReachable === false
+    ) {
+      Alert.alert(
+        "🔌 You are offline",
+        "You can keep using the app! Your changes will be saved locally and synced when you are back online."
+      );
+    }
+  }, [networkState.isConnected, networkState.isInternetReachable]);
+
+  if (!loaded) {
     return null;
   }
 
-  console.log('RootLayout: Rendering app');
+  const CustomDefaultTheme: Theme = {
+    ...DefaultTheme,
+    dark: false,
+    colors: {
+      primary: "rgb(0, 122, 255)",
+      background: "rgb(242, 242, 247)",
+      card: "rgb(255, 255, 255)",
+      text: "rgb(0, 0, 0)",
+      border: "rgb(216, 216, 220)",
+      notification: "rgb(255, 59, 48)",
+    },
+  };
+
+  const CustomDarkTheme: Theme = {
+    ...DarkTheme,
+    colors: {
+      primary: "rgb(10, 132, 255)",
+      background: "rgb(1, 1, 1)",
+      card: "rgb(28, 28, 30)",
+      text: "rgb(255, 255, 255)",
+      border: "rgb(44, 44, 46)",
+      notification: "rgb(255, 69, 58)",
+    },
+  };
 
   return (
-    <SupabaseAuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-        <StatusBar style="auto" />
+    <>
+      <StatusBar style="auto" animated />
+      <ThemeProvider
+        value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+      >
+        <SupabaseAuthProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="auth/login" />
+              <Stack.Screen name="auth/setup-pin" />
+              <Stack.Screen name="auth/supabase-login" />
+            </Stack>
+            <SystemBars style="auto" />
+          </GestureHandlerRootView>
+        </SupabaseAuthProvider>
       </ThemeProvider>
-    </SupabaseAuthProvider>
+    </>
   );
 }
