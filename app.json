@@ -1,48 +1,40 @@
+
 {
   "expo": {
     "name": "Track Analyzer Pro",
-    "slug": "Track Analyzer Pro",
+    "slug": "track-analyzer-pro",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/natively-dark.png",
+    "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/natively-dark.png",
+      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#1a1a2e"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.trackanalyzerpro",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "bundleIdentifier": "com.trackanalyzer.pro"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/natively-dark.png",
-        "backgroundColor": "#000000"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.trackanalyzerpro"
+      "package": "com.trackanalyzer.pro"
     },
     "web": {
-      "favicon": "./assets/images/final_quest_240x240.png",
-      "bundler": "metro"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-font",
       "expo-router",
-      "expo-web-browser"
+      "expo-font",
+      "expo-secure-store"
     ],
     "scheme": "trackanalyzerpro",
     "experiments": {
       "typedRoutes": true
-    },
-    "extra": {
-      "router": {}
     }
-  },
-  "scheme": "Track Analyzer Pro"
+  }
 }
