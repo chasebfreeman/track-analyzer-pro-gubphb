@@ -28,6 +28,7 @@ const TAB_CONFIGS: TabConfig[] = [
   { name: 'tracks', ios_icon_name: 'map.fill', android_material_icon_name: 'map', label: 'Tracks' },
   { name: 'record', ios_icon_name: 'plus.circle.fill', android_material_icon_name: 'add_circle', label: 'Record' },
   { name: 'browse', ios_icon_name: 'magnifyingglass', android_material_icon_name: 'search', label: 'Browse' },
+  { name: 'settings', ios_icon_name: 'gearshape.fill', android_material_icon_name: 'settings', label: 'Settings' },
 ];
 
 export default function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
@@ -57,7 +58,7 @@ export default function FloatingTabBar({ state, descriptors, navigation }: Botto
           style={[
             styles.container,
             {
-              width: Math.min(screenWidth * 0.7, 400),
+              width: Math.min(screenWidth * 0.85, 500),
               marginBottom: 20
             }
           ]}

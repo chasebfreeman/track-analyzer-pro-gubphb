@@ -28,28 +28,6 @@ export default function BrowseScreen() {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadTracks = useCallback(async () => {
-    console.log('Loading tracks for browse screen');
-    const allTracks = await SupabaseStorageService.getAllTracks();
-    setTracks(allTracks);
-    
-    if (allTracks.length > 0 && !selectedTrack) {
-      console.log('Auto-selecting first track');
-      setSelectedTrack(allTracks[0]);
-    }
-  }, [selectedTrack]);
-
-  const loadAvailableYears = useCallback(async () => {
-    console.log('Loading available years');
-    const years = await SupabaseStorageService.getAvailableYears();
-    setAvailableYears(years);
-    
-    if (years.length > 0 && selectedYear === null) {
-      console.log('Auto-selecting most recent year:', years[0]);
-      setSelectedYear(years[0]);
-    }
-  }, [selectedYear]);
-
   const loadReadings = useCallback(async (trackId: string, year: number | null) => {
     console.log('Loading readings for track:', trackId, 'year:', year);
     const trackReadings = await SupabaseStorageService.getReadingsForTrack(
@@ -78,6 +56,28 @@ export default function BrowseScreen() {
     console.log('Grouped readings into', dayReadings.length, 'days');
   }, []);
 
+  const loadTracks = useCallback(async () => {
+    console.log('Loading tracks for browse screen');
+    const allTracks = await SupabaseStorageService.getAllTracks();
+    setTracks(allTracks);
+    
+    if (allTracks.length > 0 && !selectedTrack) {
+      console.log('Auto-selecting first track');
+      setSelectedTrack(allTracks[0]);
+    }
+  }, [selectedTrack]);
+
+  const loadAvailableYears = useCallback(async () => {
+    console.log('Loading available years');
+    const years = await SupabaseStorageService.getAvailableYears();
+    setAvailableYears(years);
+    
+    if (years.length > 0 && selectedYear === null) {
+      console.log('Auto-selecting most recent year:', years[0]);
+      setSelectedYear(years[0]);
+    }
+  }, [selectedYear]);
+
   useFocusEffect(
     useCallback(() => {
       console.log('Browse screen focused');
@@ -89,7 +89,7 @@ export default function BrowseScreen() {
   useEffect(() => {
     loadTracks();
     loadAvailableYears();
-  }, [loadTracks, loadAvailableYears]);
+  }, []);
 
   useEffect(() => {
     if (selectedTrack) {
