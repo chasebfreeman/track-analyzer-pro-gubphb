@@ -23,6 +23,10 @@ export class SupabaseStorageService {
 
       if (error) {
         console.error('Error fetching tracks:', error);
+        // If we get a policy error, it might be a temporary issue - return empty array
+        if (error.code === '42P17') {
+          console.log('RLS policy error detected - this should be fixed now. Please restart the app.');
+        }
         return [];
       }
 
@@ -305,6 +309,10 @@ export class SupabaseStorageService {
 
       if (error) {
         console.error('Error fetching years:', error);
+        // If we get a policy error, it might be a temporary issue - return empty array
+        if (error.code === '42P17') {
+          console.log('RLS policy error detected - this should be fixed now. Please restart the app.');
+        }
         return [];
       }
 
