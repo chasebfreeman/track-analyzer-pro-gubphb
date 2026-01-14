@@ -1,3 +1,4 @@
+
 // Global error logging for runtime errors
 // Captures console.log/warn/error and sends to Natively server for AI debugging
 
@@ -248,7 +249,7 @@ const getCallerInfo = (): string => {
 
 // Helper to safely stringify arguments
 const stringifyArgs = (args: any[]): string => {
-  return args.map(arg => {
+  return args.map((arg, index) => {
     if (typeof arg === 'string') return arg;
     if (arg === null) return 'null';
     if (arg === undefined) return 'undefined';

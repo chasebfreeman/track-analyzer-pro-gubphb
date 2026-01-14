@@ -166,6 +166,7 @@ export default function TracksScreen() {
           contentContainerStyle={styles.yearFilterContent}
         >
           <TouchableOpacity
+            key="all-years"
             style={[styles.yearChip, selectedYear === null && styles.yearChipActive]}
             onPress={() => {
               console.log('User selected All Years filter');
@@ -178,7 +179,7 @@ export default function TracksScreen() {
           </TouchableOpacity>
           {availableYears.map((year) => (
             <TouchableOpacity
-              key={year}
+              key={`year-${year}`}
               style={[styles.yearChip, selectedYear === year && styles.yearChipActive]}
               onPress={() => {
                 console.log('User selected year filter:', year);
@@ -217,7 +218,7 @@ export default function TracksScreen() {
           ) : (
             filteredTracks.map((track) => (
               <TouchableOpacity
-                key={track.id}
+                key={`track-${track.id}`}
                 style={styles.trackCard}
                 onPress={() => handleTrackPress(track)}
               >
