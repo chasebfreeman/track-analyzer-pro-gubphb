@@ -238,64 +238,62 @@ export default function BrowseScreen() {
               </Text>
             </View>
           ) : (
-            <React.Fragment>
-              {groupedReadings.map((day, dayIndex) => (
-                <View key={`day-${day.date}-${dayIndex}`} style={styles.dayGroup}>
-                  <TouchableOpacity
-                    style={styles.dayHeader}
-                    onPress={() => toggleDayExpansion(day.date)}
-                  >
-                    <View>
-                      <Text style={styles.dayDate}>{formatDateWithDay(day.date)}</Text>
-                      <Text style={styles.dayCount}>{day.readings.length} reading(s)</Text>
-                    </View>
-                    <IconSymbol
-                      ios_icon_name={expandedDays.has(day.date) ? 'chevron.up' : 'chevron.down'}
-                      android_material_icon_name={expandedDays.has(day.date) ? 'arrow-upward' : 'arrow-downward'}
-                      size={20}
-                      color={colors.textSecondary}
-                    />
-                  </TouchableOpacity>
+            groupedReadings.map((day, dayIndex) => (
+              <View key={`day-${day.date}-${dayIndex}`} style={styles.dayGroup}>
+                <TouchableOpacity
+                  style={styles.dayHeader}
+                  onPress={() => toggleDayExpansion(day.date)}
+                >
+                  <View>
+                    <Text style={styles.dayDate}>{formatDateWithDay(day.date)}</Text>
+                    <Text style={styles.dayCount}>{day.readings.length} reading(s)</Text>
+                  </View>
+                  <IconSymbol
+                    ios_icon_name={expandedDays.has(day.date) ? 'chevron.up' : 'chevron.down'}
+                    android_material_icon_name={expandedDays.has(day.date) ? 'arrow-upward' : 'arrow-downward'}
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
 
-                  {expandedDays.has(day.date) && (
-                    <View style={styles.readingsContainer}>
-                      {day.readings.map((reading, readingIndex) => (
-                        <TouchableOpacity
-                          key={`reading-${reading.id}-${readingIndex}`}
-                          style={styles.readingCard}
-                          onPress={() => handleReadingPress(reading)}
-                        >
-                          <View style={styles.readingHeader}>
-                            <IconSymbol
-                              ios_icon_name="clock"
-                              android_material_icon_name="access-time"
-                              size={16}
-                              color={colors.primary}
-                            />
-                            <Text style={styles.readingTime}>{reading.time}</Text>
-                          </View>
-                          <View style={styles.readingData}>
-                            <Text style={styles.readingDataText}>
-                              Left: {reading.leftLane.trackTemp}°F, UV {reading.leftLane.uvIndex}
-                            </Text>
-                            <Text style={styles.readingDataText}>
-                              Right: {reading.rightLane.trackTemp}°F, UV {reading.rightLane.uvIndex}
-                            </Text>
-                          </View>
+                {expandedDays.has(day.date) && (
+                  <View style={styles.readingsContainer}>
+                    {day.readings.map((reading, readingIndex) => (
+                      <TouchableOpacity
+                        key={`reading-${reading.id}-${readingIndex}`}
+                        style={styles.readingCard}
+                        onPress={() => handleReadingPress(reading)}
+                      >
+                        <View style={styles.readingHeader}>
                           <IconSymbol
-                            ios_icon_name="chevron.right"
-                            android_material_icon_name="arrow-forward"
+                            ios_icon_name="clock"
+                            android_material_icon_name="access-time"
                             size={16}
-                            color={colors.textSecondary}
-                            style={styles.readingChevron}
+                            color={colors.primary}
                           />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              ))}
-            </React.Fragment>
+                          <Text style={styles.readingTime}>{reading.time}</Text>
+                        </View>
+                        <View style={styles.readingData}>
+                          <Text style={styles.readingDataText}>
+                            Left: {reading.leftLane.trackTemp}°F, UV {reading.leftLane.uvIndex}
+                          </Text>
+                          <Text style={styles.readingDataText}>
+                            Right: {reading.rightLane.trackTemp}°F, UV {reading.rightLane.uvIndex}
+                          </Text>
+                        </View>
+                        <IconSymbol
+                          ios_icon_name="chevron.right"
+                          android_material_icon_name="arrow-forward"
+                          size={16}
+                          color={colors.textSecondary}
+                          style={styles.readingChevron}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))
           )}
         </ScrollView>
       </SafeAreaView>
