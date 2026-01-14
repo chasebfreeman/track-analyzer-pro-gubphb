@@ -155,9 +155,9 @@ export default function BrowseScreen() {
           style={styles.trackSelector}
           contentContainerStyle={styles.trackSelectorContent}
         >
-          {tracks.map((track) => (
+          {tracks.map((track, index) => (
             <TouchableOpacity
-              key={track.id}
+              key={track.id || `track-${index}`}
               style={[
                 styles.trackChip,
                 selectedTrack?.id === track.id && styles.trackChipActive,
@@ -196,9 +196,9 @@ export default function BrowseScreen() {
               All Years
             </Text>
           </TouchableOpacity>
-          {availableYears.map((year) => (
+          {availableYears.map((year, index) => (
             <TouchableOpacity
-              key={year}
+              key={`year-${year}-${index}`}
               style={[styles.yearChip, selectedYear === year && styles.yearChipActive]}
               onPress={() => {
                 console.log('User selected year filter:', year);
@@ -237,8 +237,8 @@ export default function BrowseScreen() {
               </Text>
             </View>
           ) : (
-            groupedReadings.map((day) => (
-              <View key={day.date} style={styles.dayGroup}>
+            groupedReadings.map((day, dayIndex) => (
+              <View key={`day-${day.date}-${dayIndex}`} style={styles.dayGroup}>
                 <TouchableOpacity
                   style={styles.dayHeader}
                   onPress={() => toggleDayExpansion(day.date)}
@@ -257,9 +257,9 @@ export default function BrowseScreen() {
 
                 {expandedDays.has(day.date) && (
                   <View style={styles.readingsContainer}>
-                    {day.readings.map((reading) => (
+                    {day.readings.map((reading, readingIndex) => (
                       <TouchableOpacity
-                        key={reading.id}
+                        key={reading.id || `reading-${readingIndex}`}
                         style={styles.readingCard}
                         onPress={() => handleReadingPress(reading)}
                       >
