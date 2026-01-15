@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Platform,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect, Stack } from 'expo-router';
@@ -28,6 +29,7 @@ export default function BrowseScreen() {
   const [groupedReadings, setGroupedReadings] = useState<DayReadings[]>([]);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showTrackDropdown, setShowTrackDropdown] = useState(false);
 
   const loadReadings = useCallback(async (trackId: string, year: number | null) => {
     console.log('Loading readings for track:', trackId, 'year:', year);
@@ -139,6 +141,12 @@ export default function BrowseScreen() {
     setExpandedDays(newExpanded);
   };
 
+  const handleTrackSelect = (track: Track) => {
+    console.log('User selected track:', track.name);
+    setSelectedTrack(track);
+    setShowTrackDropdown(false);
+  };
+
   const styles = getStyles(colors);
 
   return (
@@ -149,36 +157,7 @@ export default function BrowseScreen() {
           <Text style={styles.headerTitle}>Browse Readings</Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.trackSelector}
-          contentContainerStyle={styles.trackSelectorContent}
-        >
-          {tracks.map((track, trackIndex) => (
-            <TouchableOpacity
-              key={`track-${track.id}-${trackIndex}`}
-              style={[
-                styles.trackChip,
-                selectedTrack?.id === track.id && styles.trackChipActive,
-              ]}
-              onPress={() => {
-                console.log('User selected track:', track.name);
-                setSelectedTrack(track);
-              }}
-            >
-              <Text
-                style={[
-                  styles.trackChipText,
-                  selectedTrack?.id === track.id && styles.trackChipTextActive,
-                ]}
-              >
-                {track.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
+        {/* Year Filter - Horizontal Scroll */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -212,6 +191,27 @@ export default function BrowseScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {/* Track Dropdown */}
+        <View style={styles.trackSelector}>
+          <TouchableOpacity
+            style={styles.dropdownButton}
+            onPress={() => {
+              console.log('User tapped track dropdown');
+              setShowTrackDropdown(true);
+            }}
+          >
+            <Text style={styles.dropdownButtonText}>
+              {selectedTrack ? selectedTrack.name : 'Choose a track...'}
+            </Text>
+            <IconSymbol
+              ios_icon_name="chevron.down"
+              android_material_icon_name="arrow-downward"
+              size={20}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+        </View>
 
         <ScrollView
           style={styles.readingsList}
@@ -296,6 +296,63 @@ export default function BrowseScreen() {
             ))
           )}
         </ScrollView>
+
+        {/* Track Dropdown Modal */}
+        <Modal
+          visible={showTrackDropdown}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowTrackDropdown(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowTrackDropdown(false)}
+          >
+            <View style={styles.dropdownModal}>
+              <View style={styles.dropdownHeader}>
+                <Text style={styles.dropdownTitle}>Select Track</Text>
+                <TouchableOpacity onPress={() => setShowTrackDropdown(false)}>
+                  <IconSymbol
+                    ios_icon_name="xmark"
+                    android_material_icon_name="close"
+                    size={24}
+                    color={colors.text}
+                  />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.dropdownList}>
+                {tracks.map((track, index) => (
+                  <TouchableOpacity
+                    key={`track-dropdown-${track.id}-${index}`}
+                    style={[
+                      styles.dropdownItem,
+                      selectedTrack?.id === track.id && styles.dropdownItemActive,
+                    ]}
+                    onPress={() => handleTrackSelect(track)}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        selectedTrack?.id === track.id && styles.dropdownItemTextActive,
+                      ]}
+                    >
+                      {track.name}
+                    </Text>
+                    {selectedTrack?.id === track.id && (
+                      <IconSymbol
+                        ios_icon_name="checkmark"
+                        android_material_icon_name="check"
+                        size={20}
+                        color={colors.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </SafeAreaView>
     </>
   );
@@ -316,37 +373,9 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       fontWeight: 'bold',
       color: colors.text,
     },
-    trackSelector: {
-      maxHeight: 50,
-      marginBottom: 12,
-    },
-    trackSelectorContent: {
-      paddingHorizontal: 20,
-      gap: 8,
-    },
-    trackChip: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    trackChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    trackChipText: {
-      fontSize: 14,
-      color: colors.text,
-      fontWeight: '500',
-    },
-    trackChipTextActive: {
-      color: '#FFFFFF',
-    },
     yearFilter: {
       maxHeight: 50,
-      marginBottom: 16,
+      marginBottom: 12,
     },
     yearFilterContent: {
       paddingHorizontal: 20,
@@ -371,6 +400,74 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     yearChipTextActive: {
       color: '#FFFFFF',
+    },
+    trackSelector: {
+      paddingHorizontal: 20,
+      marginBottom: 16,
+    },
+    dropdownButton: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dropdownButtonText: {
+      fontSize: 16,
+      color: colors.text,
+      fontWeight: '500',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    dropdownModal: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      width: '100%',
+      maxHeight: '70%',
+      overflow: 'hidden',
+    },
+    dropdownHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    dropdownTitle: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    dropdownList: {
+      maxHeight: 400,
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    dropdownItemActive: {
+      backgroundColor: colors.background,
+    },
+    dropdownItemText: {
+      fontSize: 16,
+      color: colors.text,
+    },
+    dropdownItemTextActive: {
+      fontWeight: '600',
+      color: colors.primary,
     },
     readingsList: {
       flex: 1,

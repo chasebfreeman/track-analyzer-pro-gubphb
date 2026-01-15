@@ -11,6 +11,7 @@ import {
   Image,
   Platform,
   Keyboard,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
@@ -30,6 +31,7 @@ export default function RecordScreen() {
   const [leftLane, setLeftLane] = useState<LaneReading>(getEmptyLaneReading());
   const [rightLane, setRightLane] = useState<LaneReading>(getEmptyLaneReading());
   const [isSaving, setIsSaving] = useState(false);
+  const [showTrackDropdown, setShowTrackDropdown] = useState(false);
 
   function getEmptyLaneReading(): LaneReading {
     return {
@@ -48,11 +50,13 @@ export default function RecordScreen() {
   const loadTracks = useCallback(async () => {
     console.log('Loading tracks for record screen');
     const allTracks = await SupabaseStorageService.getAllTracks();
-    setTracks(allTracks);
+    // Sort tracks alphabetically
+    const sortedTracks = allTracks.sort((a, b) => a.name.localeCompare(b.name));
+    setTracks(sortedTracks);
     
     // If trackId is in params, select that track
     if (params.trackId && typeof params.trackId === 'string') {
-      const track = allTracks.find((t) => t.id === params.trackId);
+      const track = sortedTracks.find((t) => t.id === params.trackId);
       if (track) {
         console.log('Auto-selecting track from params:', track.name);
         setSelectedTrack(track);
@@ -151,6 +155,7 @@ export default function RecordScreen() {
   const handleTrackSelect = (track: Track) => {
     console.log('User selected track:', track.name);
     setSelectedTrack(track);
+    setShowTrackDropdown(false);
   };
 
   const renderLaneInputs = (
@@ -296,32 +301,23 @@ export default function RecordScreen() {
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <View style={styles.trackSelector}>
             <Text style={styles.sectionTitle}>Select Track</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.trackScrollContent}
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => {
+                console.log('User tapped track dropdown');
+                setShowTrackDropdown(true);
+              }}
             >
-              {tracks.map((track, trackIndex) => (
-                <React.Fragment key={`track-${track.id}-${trackIndex}`}>
-                  <TouchableOpacity
-                    style={[
-                      styles.trackChip,
-                      selectedTrack?.id === track.id && styles.trackChipActive,
-                    ]}
-                    onPress={() => handleTrackSelect(track)}
-                  >
-                    <Text
-                      style={[
-                        styles.trackChipText,
-                        selectedTrack?.id === track.id && styles.trackChipTextActive,
-                      ]}
-                    >
-                      {track.name}
-                    </Text>
-                  </TouchableOpacity>
-                </React.Fragment>
-              ))}
-            </ScrollView>
+              <Text style={styles.dropdownButtonText}>
+                {selectedTrack ? selectedTrack.name : 'Choose a track...'}
+              </Text>
+              <IconSymbol
+                ios_icon_name="chevron.down"
+                android_material_icon_name="arrow-downward"
+                size={20}
+                color={colors.text}
+              />
+            </TouchableOpacity>
           </View>
 
           {selectedTrack && (
@@ -351,6 +347,63 @@ export default function RecordScreen() {
             </>
           )}
         </ScrollView>
+
+        {/* Track Dropdown Modal */}
+        <Modal
+          visible={showTrackDropdown}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowTrackDropdown(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowTrackDropdown(false)}
+          >
+            <View style={styles.dropdownModal}>
+              <View style={styles.dropdownHeader}>
+                <Text style={styles.dropdownTitle}>Select Track</Text>
+                <TouchableOpacity onPress={() => setShowTrackDropdown(false)}>
+                  <IconSymbol
+                    ios_icon_name="xmark"
+                    android_material_icon_name="close"
+                    size={24}
+                    color={colors.text}
+                  />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.dropdownList}>
+                {tracks.map((track, index) => (
+                  <TouchableOpacity
+                    key={`track-dropdown-${track.id}-${index}`}
+                    style={[
+                      styles.dropdownItem,
+                      selectedTrack?.id === track.id && styles.dropdownItemActive,
+                    ]}
+                    onPress={() => handleTrackSelect(track)}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        selectedTrack?.id === track.id && styles.dropdownItemTextActive,
+                      ]}
+                    >
+                      {track.name}
+                    </Text>
+                    {selectedTrack?.id === track.id && (
+                      <IconSymbol
+                        ios_icon_name="checkmark"
+                        android_material_icon_name="check"
+                        size={20}
+                        color={colors.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </SafeAreaView>
     </>
   );
@@ -386,29 +439,69 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.text,
       marginBottom: 12,
     },
-    trackScrollContent: {
-      paddingRight: 20,
-    },
-    trackChip: {
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-      borderRadius: 20,
+    dropdownButton: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
       backgroundColor: colors.card,
-      marginRight: 8,
+      borderRadius: 12,
+      padding: 16,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    trackChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    trackChipText: {
-      fontSize: 14,
+    dropdownButtonText: {
+      fontSize: 16,
       color: colors.text,
       fontWeight: '500',
     },
-    trackChipTextActive: {
-      color: '#FFFFFF',
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    dropdownModal: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      width: '100%',
+      maxHeight: '70%',
+      overflow: 'hidden',
+    },
+    dropdownHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    dropdownTitle: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    dropdownList: {
+      maxHeight: 400,
+    },
+    dropdownItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    dropdownItemActive: {
+      backgroundColor: colors.background,
+    },
+    dropdownItemText: {
+      fontSize: 16,
+      color: colors.text,
+    },
+    dropdownItemTextActive: {
+      fontWeight: '600',
+      color: colors.primary,
     },
     laneSection: {
       backgroundColor: colors.card,
