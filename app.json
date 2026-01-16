@@ -5,7 +5,7 @@
     "slug": "Track Analyzer Pro",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/d95dd169-463d-4227-b531-e8336da748d4.jpeg",
+    "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "platforms": [
@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.trackanalyzerpro.app",
-      "icon": "./assets/images/d95dd169-463d-4227-b531-e8336da748d4.jpeg",
+      "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload track lane photos.",
@@ -31,10 +31,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/d95dd169-463d-4227-b531-e8336da748d4.jpeg",
+        "foregroundImage": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
         "backgroundColor": "#000000"
       },
-      "icon": "./assets/images/d95dd169-463d-4227-b531-e8336da748d4.jpeg",
+      "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
       "edgeToEdgeEnabled": true,
       "package": "com.trackanalyzerpro.app",
       "versionCode": 1,
@@ -45,7 +45,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/d95dd169-463d-4227-b531-e8336da748d4.jpeg",
+      "favicon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
       "bundler": "metro",
       "output": "static"
     },
