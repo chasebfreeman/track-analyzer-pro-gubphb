@@ -329,6 +329,9 @@ export default function SettingsScreen() {
               <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
             )}
           </TouchableOpacity>
+
+          {/* Extra bottom padding for comfortable scrolling */}
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       </SafeAreaView>
     </>
@@ -355,6 +358,7 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     contentContainer: {
       padding: 20,
+      paddingBottom: 120,
     },
     section: {
       marginBottom: 24,
@@ -424,6 +428,7 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderRadius: 12,
       padding: 16,
       marginTop: 12,
+      marginBottom: 24,
       borderWidth: 2,
       borderColor: '#FF3B30',
       gap: 12,
@@ -432,6 +437,9 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 16,
       fontWeight: '600',
       color: '#FF3B30',
+    },
+    bottomSpacer: {
+      height: 40,
     },
   });
 }

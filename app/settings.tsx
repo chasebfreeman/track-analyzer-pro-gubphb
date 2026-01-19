@@ -25,6 +25,7 @@ const getStyles = (colors: ReturnType<typeof useThemeColors>) =>
     },
     scrollContent: {
       padding: 16,
+      paddingBottom: 120,
     },
     section: {
       marginBottom: 24,
@@ -72,6 +73,7 @@ const getStyles = (colors: ReturnType<typeof useThemeColors>) =>
       borderRadius: 12,
       alignItems: 'center',
       marginTop: 8,
+      marginBottom: 24,
       borderWidth: 2,
       borderColor: '#FF3B30',
     },
@@ -85,6 +87,7 @@ const getStyles = (colors: ReturnType<typeof useThemeColors>) =>
       color: colors.textSecondary,
       textAlign: 'center',
       marginTop: 24,
+      marginBottom: 40,
     },
   });
 
