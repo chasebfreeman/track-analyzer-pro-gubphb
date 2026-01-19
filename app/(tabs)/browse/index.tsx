@@ -16,8 +16,6 @@ import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Track, TrackReading, DayReadings } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
-import EnhancedDailyChart from '@/components/EnhancedDailyChart';
-import AIInsightsCard from '@/components/AIInsightsCard';
 
 export default function BrowseScreen() {
   const colors = useThemeColors();
@@ -261,20 +259,6 @@ export default function BrowseScreen() {
 
                   {expandedDays.has(day.date) && (
                     <View style={styles.expandedContent}>
-                      {/* AI Insights Card */}
-                      {selectedTrack && day.readings.length > 0 && (
-                        <AIInsightsCard trackId={selectedTrack.id} date={day.date} />
-                      )}
-
-                      {/* Enhanced Daily Chart */}
-                      {selectedTrack && day.readings.length > 1 && (
-                        <EnhancedDailyChart
-                          readings={day.readings}
-                          date={day.date}
-                          trackId={selectedTrack.id}
-                        />
-                      )}
-
                       {/* Individual Readings */}
                       <View style={styles.readingsContainer}>
                         {day.readings.map((reading, readingIndex) => (
