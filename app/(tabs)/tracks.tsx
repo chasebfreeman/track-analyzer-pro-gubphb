@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   Platform,
   Keyboard,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect, Stack } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
@@ -31,6 +33,9 @@ export default function TracksScreen() {
   const [newTrackName, setNewTrackName] = useState('');
   const [newTrackLocation, setNewTrackLocation] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Keep track of open swipeable refs to close them when opening another
+  const openSwipeableRef = useRef<Swipeable | null>(null);
 
   const loadTracks = useCallback(async () => {
     console.log('Loading all tracks from Supabase');
@@ -107,6 +112,10 @@ export default function TracksScreen() {
 
   const handleTrackPress = (track: Track) => {
     console.log('User tapped track:', track.name);
+    // Close any open swipeable before navigating
+    if (openSwipeableRef.current) {
+      openSwipeableRef.current.close();
+    }
     router.push({
       pathname: '/(tabs)/record',
       params: { trackId: track.id },
@@ -114,7 +123,7 @@ export default function TracksScreen() {
   };
 
   const handleDeleteTrack = (track: Track) => {
-    console.log('User long-pressed track to delete:', track.name);
+    console.log('User swiped to delete track:', track.name);
     
     Alert.alert(
       'Delete Track',
@@ -123,7 +132,13 @@ export default function TracksScreen() {
         {
           text: 'Cancel',
           style: 'cancel',
-          onPress: () => console.log('User cancelled track deletion'),
+          onPress: () => {
+            console.log('User cancelled track deletion');
+            // Close the swipeable
+            if (openSwipeableRef.current) {
+              openSwipeableRef.current.close();
+            }
+          },
         },
         {
           text: 'Delete',
@@ -145,6 +160,56 @@ export default function TracksScreen() {
         },
       ]
     );
+  };
+
+  const renderRightActions = (
+    progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>,
+    track: Track
+  ) => {
+    const translateX = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [0, 100],
+      extrapolate: 'clamp',
+    });
+
+    const opacity = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    });
+
+    return (
+      <Animated.View
+        style={[
+          styles.deleteAction,
+          {
+            transform: [{ translateX }],
+            opacity,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => handleDeleteTrack(track)}
+        >
+          <IconSymbol
+            ios_icon_name="trash"
+            android_material_icon_name="delete"
+            size={24}
+            color="#FFFFFF"
+          />
+          <Text style={styles.deleteButtonText}>Delete</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const handleSwipeableOpen = (swipeable: Swipeable) => {
+    // Close previously open swipeable
+    if (openSwipeableRef.current && openSwipeableRef.current !== swipeable) {
+      openSwipeableRef.current.close();
+    }
+    openSwipeableRef.current = swipeable;
   };
 
   const styles = getStyles(colors);
@@ -254,32 +319,44 @@ export default function TracksScreen() {
           ) : (
             <React.Fragment>
               {filteredTracks.map((track, trackIndex) => (
-                <TouchableOpacity
+                <Swipeable
                   key={`track-${track.id}-${trackIndex}`}
-                  style={styles.trackCard}
-                  onPress={() => handleTrackPress(track)}
-                  onLongPress={() => handleDeleteTrack(track)}
-                  delayLongPress={800}
+                  renderRightActions={(progress, dragX) =>
+                    renderRightActions(progress, dragX, track)
+                  }
+                  onSwipeableOpen={(direction, swipeable) => {
+                    console.log('User swiped track:', track.name);
+                    handleSwipeableOpen(swipeable);
+                  }}
+                  overshootRight={false}
+                  friction={2}
+                  rightThreshold={40}
                 >
-                  <View style={styles.trackIcon}>
+                  <TouchableOpacity
+                    style={styles.trackCard}
+                    onPress={() => handleTrackPress(track)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.trackIcon}>
+                      <IconSymbol
+                        ios_icon_name="flag.checkered"
+                        android_material_icon_name="sports-score"
+                        size={32}
+                        color={colors.primary}
+                      />
+                    </View>
+                    <View style={styles.trackInfo}>
+                      <Text style={styles.trackName}>{track.name}</Text>
+                      <Text style={styles.trackLocation}>{track.location}</Text>
+                    </View>
                     <IconSymbol
-                      ios_icon_name="flag.checkered"
-                      android_material_icon_name="sports-score"
-                      size={32}
-                      color={colors.primary}
+                      ios_icon_name="chevron.right"
+                      android_material_icon_name="arrow-forward"
+                      size={20}
+                      color={colors.textSecondary}
                     />
-                  </View>
-                  <View style={styles.trackInfo}>
-                    <Text style={styles.trackName}>{track.name}</Text>
-                    <Text style={styles.trackLocation}>{track.location}</Text>
-                  </View>
-                  <IconSymbol
-                    ios_icon_name="chevron.right"
-                    android_material_icon_name="arrow-forward"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                </Swipeable>
               ))}
             </React.Fragment>
           )}
@@ -386,7 +463,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       backgroundColor: colors.card,
       borderRadius: 12,
       padding: 16,
-      marginBottom: 12,
     },
     trackIcon: {
       width: 56,
@@ -427,6 +503,26 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.textSecondary,
       marginTop: 8,
       textAlign: 'center',
+    },
+    deleteAction: {
+      justifyContent: 'center',
+      alignItems: 'flex-end',
+      width: 100,
+    },
+    deleteButton: {
+      backgroundColor: '#FF3B30',
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: 100,
+      height: '100%',
+      borderTopRightRadius: 12,
+      borderBottomRightRadius: 12,
+    },
+    deleteButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+      marginTop: 4,
     },
   });
 }
