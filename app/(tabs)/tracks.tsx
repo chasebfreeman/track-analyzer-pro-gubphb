@@ -5,13 +5,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   TextInput,
   Alert,
   Platform,
   Keyboard,
   RefreshControl,
 } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect, Stack } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
@@ -259,7 +259,7 @@ export default function TracksScreen() {
                   style={styles.trackCard}
                   onPress={() => handleTrackPress(track)}
                   onLongPress={() => handleDeleteTrack(track)}
-                  delayLongPress={500}
+                  delayLongPress={800}
                 >
                   <View style={styles.trackIcon}>
                     <IconSymbol
