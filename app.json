@@ -2,7 +2,7 @@
   "expo": {
     "name": "Track Analyzer Pro",
     "slug": "Track Analyzer Pro",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
     "userInterfaceStyle": "automatic",
