@@ -7,7 +7,11 @@
     "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "splash": {
       "image": "./assets/images/final_quest_240x240.png",
       "resizeMode": "contain",
@@ -15,14 +19,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.trackanalyzerpro.app",
+      "bundleIdentifier": "com.cfreeman4798.trackanalyzerpro",
       "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload track lane photos.",
         "NSCameraUsageDescription": "This app needs access to your camera to take photos of track lanes."
       },
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,7 +37,12 @@
       "edgeToEdgeEnabled": true,
       "package": "com.trackanalyzerpro.app",
       "versionCode": 2,
-      "permissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "CAMERA"]
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
@@ -59,6 +68,9 @@
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "053aacf8-9bb9-41d9-af12-a10076022eba"
       }
     },
     "runtimeVersion": {
