@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -13,7 +12,6 @@ import {
   Keyboard,
   Modal,
   InputAccessoryView,
-  Button,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
@@ -29,7 +27,7 @@ export default function RecordScreen() {
   const colors = useThemeColors();
   const params = useLocalSearchParams();
   const router = useRouter();
-  
+
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [session, setSession] = useState('');
@@ -53,14 +51,20 @@ export default function RecordScreen() {
     };
   }
 
+  // ✅ Local date string helper (YYYY-MM-DD) - avoids UTC shift from toISOString()
+  const localDateString = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const loadTracks = useCallback(async () => {
     console.log('Loading tracks for record screen');
     const allTracks = await SupabaseStorageService.getAllTracks();
-    // Sort tracks alphabetically
     const sortedTracks = allTracks.sort((a, b) => a.name.localeCompare(b.name));
     setTracks(sortedTracks);
-    
-    // If trackId is in params, select that track
+
     if (params.trackId && typeof params.trackId === 'string') {
       const track = sortedTracks.find((t) => t.id === params.trackId);
       if (track) {
@@ -83,9 +87,9 @@ export default function RecordScreen() {
 
   const pickImage = async (lane: 'left' | 'right') => {
     console.log('User tapped pick image for', lane, 'lane');
-    
+
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (!permissionResult.granted) {
       Alert.alert('Permission Required', 'Please allow access to your photo library');
       return;
@@ -112,19 +116,19 @@ export default function RecordScreen() {
     const minutes = date.getMinutes();
     const seconds = date.getSeconds();
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    
+
     hours = hours % 12;
-    hours = hours ? hours : 12; // the hour '0' should be '12'
-    
+    hours = hours ? hours : 12;
+
     const minutesStr = minutes < 10 ? '0' + minutes : minutes;
     const secondsStr = seconds < 10 ? '0' + seconds : seconds;
-    
+
     return `${hours}:${minutesStr}:${secondsStr} ${ampm}`;
   };
 
   const handleSaveReading = async () => {
     console.log('User tapped Save Reading button');
-    
+
     if (!selectedTrack) {
       Alert.alert('Error', 'Please select a track');
       return;
@@ -132,13 +136,15 @@ export default function RecordScreen() {
 
     setIsSaving(true);
 
-    // Create new reading
     const now = new Date();
     const time12Hour = formatTimeTo12Hour(now);
-    
+
     const reading = {
       trackId: selectedTrack.id,
-      date: now.toISOString().split('T')[0],
+
+      // ✅ FIX: store local date, not UTC ISO date
+      date: localDateString(now),
+
       time: time12Hour,
       timestamp: now.getTime(),
       year: now.getFullYear(),
@@ -197,7 +203,7 @@ export default function RecordScreen() {
     return (
       <View style={styles.laneSection}>
         <Text style={styles.laneTitle}>{title}</Text>
-        
+
         <View style={styles.inputRow}>
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Track Temp</Text>
@@ -213,7 +219,7 @@ export default function RecordScreen() {
               {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
             />
           </View>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>UV Index</Text>
             <TextInput
@@ -245,7 +251,7 @@ export default function RecordScreen() {
               {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
             />
           </View>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Keg Out</Text>
             <TextInput
@@ -277,7 +283,7 @@ export default function RecordScreen() {
               {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
             />
           </View>
-          
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Grippo Out</Text>
             <TextInput
@@ -325,24 +331,17 @@ export default function RecordScreen() {
           />
         </View>
 
-        <TouchableOpacity
-          style={styles.imageButton}
-          onPress={() => pickImage(laneType)}
-        >
+        <TouchableOpacity style={styles.imageButton} onPress={() => pickImage(laneType)}>
           <IconSymbol
             ios_icon_name="camera"
             android_material_icon_name="camera"
             size={24}
             color={colors.primary}
           />
-          <Text style={styles.imageButtonText}>
-            {lane.imageUri ? 'Change Photo' : 'Add Photo'}
-          </Text>
+          <Text style={styles.imageButtonText}>{lane.imageUri ? 'Change Photo' : 'Add Photo'}</Text>
         </TouchableOpacity>
 
-        {lane.imageUri && (
-          <Image source={{ uri: lane.imageUri }} style={styles.previewImage} />
-        )}
+        {lane.imageUri && <Image source={{ uri: lane.imageUri }} style={styles.previewImage} />}
       </View>
     );
   };
@@ -381,7 +380,6 @@ export default function RecordScreen() {
 
           {selectedTrack && (
             <>
-              {/* Session and Pair inputs - applies to both lanes */}
               <View style={styles.sessionPairSection}>
                 <View style={styles.inputRow}>
                   <View style={styles.inputGroup}>
@@ -397,7 +395,7 @@ export default function RecordScreen() {
                       {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
                     />
                   </View>
-                  
+
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Pair</Text>
                     <TextInput
@@ -418,11 +416,7 @@ export default function RecordScreen() {
               {renderLaneInputs(rightLane, setRightLane, 'Right Lane', 'right')}
 
               <View style={styles.actions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={handleCancel}
-                  disabled={isSaving}
-                >
+                <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={isSaving}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
 
@@ -431,16 +425,13 @@ export default function RecordScreen() {
                   onPress={handleSaveReading}
                   disabled={isSaving}
                 >
-                  <Text style={styles.saveButtonText}>
-                    {isSaving ? 'Saving...' : 'Save Reading'}
-                  </Text>
+                  <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save Reading'}</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
         </ScrollView>
 
-        {/* Track Dropdown Modal */}
         <Modal
           visible={showTrackDropdown}
           transparent={true}
@@ -498,7 +489,6 @@ export default function RecordScreen() {
         </Modal>
       </SafeAreaView>
 
-      {/* Keyboard Accessory View with Done button - iOS only - MUST be outside SafeAreaView */}
       {Platform.OS === 'ios' && (
         <InputAccessoryView nativeID={INPUT_ACCESSORY_VIEW_ID}>
           <View style={styles.keyboardAccessory}>
@@ -539,7 +529,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     contentContainer: {
       padding: 20,
-      // Add extra bottom padding to ensure content is fully scrollable above the FloatingTabBar
       paddingBottom: 140,
     },
     trackSelector: {
