@@ -2,7 +2,7 @@
   "expo": {
     "name": "Track Analyzer Pro",
     "slug": "track-analyzer-pro",
-    "version": "1.0.2",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
     "userInterfaceStyle": "automatic",
@@ -26,7 +26,7 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload track lane photos.",
         "NSCameraUsageDescription": "This app needs access to your camera to take photos of track lanes."
       },
-      "buildNumber": "5"
+      "buildNumber": "8"
     },
     "android": {
       "adaptiveIcon": {
@@ -36,7 +36,7 @@
       "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
       "edgeToEdgeEnabled": true,
       "package": "com.trackanalyzerpro.app",
-      "versionCode": 5,
+      "versionCode": 8,
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",

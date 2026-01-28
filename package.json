@@ -1,6 +1,6 @@
 {
   "name": "track-analyzer-pro",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "main": "index.ts",
   "description": "Professional race track data recording and analysis app for track specialists",
   "scripts": {
