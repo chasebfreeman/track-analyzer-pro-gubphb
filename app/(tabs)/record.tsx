@@ -51,12 +51,23 @@ export default function RecordScreen() {
     };
   }
 
-  // ✅ Local date string helper (YYYY-MM-DD) - avoids UTC shift from toISOString()
-  const localDateString = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+  // ✅ Track-local forever: use device timezone at the moment you record (you’re at the track)
+  const getDeviceTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // ✅ Get YYYY-MM-DD for a specific timezone from a timestamp
+  const trackDateString = (ms: number, timeZone: string) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(ms));
+
+    const y = parts.find((p) => p.type === 'year')?.value ?? '0000';
+    const m = parts.find((p) => p.type === 'month')?.value ?? '00';
+    const d = parts.find((p) => p.type === 'day')?.value ?? '00';
+
+    return `${y}-${m}-${d}`;
   };
 
   const loadTracks = useCallback(async () => {
@@ -111,19 +122,18 @@ export default function RecordScreen() {
     }
   };
 
+  // ✅ No seconds
   const formatTimeTo12Hour = (date: Date): string => {
-  let hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
 
-  hours = hours % 12;
-  hours = hours ? hours : 12;
+    hours = hours % 12;
+    hours = hours ? hours : 12;
 
-  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
-
-  return `${hours}:${minutesStr} ${ampm}`;
-};
-
+    const minutesStr = String(minutes).padStart(2, '0');
+    return `${hours}:${minutesStr} ${ampm}`;
+  };
 
   const handleSaveReading = async () => {
     console.log('User tapped Save Reading button');
@@ -136,21 +146,36 @@ export default function RecordScreen() {
     setIsSaving(true);
 
     const now = new Date();
+    const ms = now.getTime();
+
+    // ✅ Track timezone captured at record time (device timezone while you’re at the track)
+    const timeZone = getDeviceTimeZone();
+
+    // ✅ Track-local calendar date (YYYY-MM-DD) in that timezone
+    const trackDate = trackDateString(ms, timeZone);
+
+    // ✅ Keep "time" for now (not required long-term), without seconds
     const time12Hour = formatTimeTo12Hour(now);
 
-    const reading = {
+    const reading: any = {
       trackId: selectedTrack.id,
 
-      // ✅ FIX: store local date, not UTC ISO date
-      date: localDateString(now),
-
+      // Keep existing columns aligned to track day (safe/backward-compatible)
+      date: trackDate,
       time: time12Hour,
-      timestamp: now.getTime(),
-      year: now.getFullYear(),
+
+      timestamp: ms,
+      year: Number(trackDate.slice(0, 4)),
       session,
       pair,
       leftLane,
       rightLane,
+
+      // ✅ NEW (requires new columns in Supabase):
+      // readings.time_zone (text)
+      // readings.track_date (text)
+      timeZone,
+      trackDate,
     };
 
     console.log('Saving new reading:', reading);
