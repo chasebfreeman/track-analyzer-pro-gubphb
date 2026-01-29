@@ -13,20 +13,27 @@ export interface LaneReading {
 export interface TrackReading {
   id: string;
   trackId: string;
+
+  // legacy
   date: string;
   time: string;
+
+  // single source of truth
   timestamp: number;
   year: number;
+
   session?: string;
   pair?: string;
   classCurrentlyRunning?: string;
+
   leftLane: LaneReading;
   rightLane: LaneReading;
 
-  // ✅ NEW
+  // ✅ NEW (track-local forever)
   timeZone?: string;
   trackDate?: string;
 }
+
 
 
 export interface Track {
