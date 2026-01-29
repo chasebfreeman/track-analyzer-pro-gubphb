@@ -155,6 +155,34 @@ export default function ReadingDetailScreen() {
       </View>
     );
   };
+const formatTimeInTimeZone = (ms: number, timeZone: string) => {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(ms));
+  } catch {
+    // fallback to device local time
+    const d = new Date(ms);
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${minutes} ${ampm}`;
+  }
+};
+
+const getDisplayDate = (r: TrackReading) => r.trackDate || r.date;
+
+const getDisplayTime = (r: TrackReading) => {
+  if (r.timeZone && r.timestamp) {
+    return formatTimeInTimeZone(r.timestamp, r.timeZone);
+  }
+  return r.time;
+};
 
   const styles = getStyles(colors);
 
@@ -219,7 +247,7 @@ export default function ReadingDetailScreen() {
               size={20}
               color={colors.primary}
             />
-            <Text style={styles.infoText}>{reading.date}</Text>
+            <Text style={styles.infoText}>{getDisplayDate(reading)}</Text>
           </View>
           
           <View style={styles.infoRow}>
@@ -229,7 +257,7 @@ export default function ReadingDetailScreen() {
               size={20}
               color={colors.primary}
             />
-            <Text style={styles.infoText}>{reading.time}</Text>
+            <Text style={styles.infoText}>{getDisplayTime(reading)}</Text>
           </View>
 
           {reading.session && (
