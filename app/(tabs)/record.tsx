@@ -136,31 +136,27 @@ export default function RecordScreen() {
   };
 
   const handleSaveReading = async () => {
-    console.log('User tapped Save Reading button');
+  console.log('User tapped Save Reading button');
 
-    if (!selectedTrack) {
-      Alert.alert('Error', 'Please select a track');
-      return;
-    }
+  if (!selectedTrack) {
+    Alert.alert('Error', 'Please select a track');
+    return;
+  }
 
-    setIsSaving(true);
+  setIsSaving(true);
 
+  try {
     const now = new Date();
     const ms = now.getTime();
 
-    // ✅ Track timezone captured at record time (device timezone while you’re at the track)
     const timeZone = getDeviceTimeZone();
-
-    // ✅ Track-local calendar date (YYYY-MM-DD) in that timezone
     const trackDate = trackDateString(ms, timeZone);
-
-    // ✅ Keep "time" for now (not required long-term), without seconds
     const time12Hour = formatTimeTo12Hour(now);
 
     const reading: any = {
       trackId: selectedTrack.id,
 
-      // Keep existing columns aligned to track day (safe/backward-compatible)
+      // keep legacy fields aligned to track day
       date: trackDate,
       time: time12Hour,
 
@@ -171,9 +167,7 @@ export default function RecordScreen() {
       leftLane,
       rightLane,
 
-      // ✅ NEW (requires new columns in Supabase):
-      // readings.time_zone (text)
-      // readings.track_date (text)
+      // new fields
       timeZone,
       trackDate,
     };
@@ -181,8 +175,6 @@ export default function RecordScreen() {
     console.log('Saving new reading:', reading);
 
     const savedReading = await SupabaseStorageService.createReading(reading);
-
-    setIsSaving(false);
 
     if (savedReading) {
       console.log('Reading saved successfully');
@@ -201,7 +193,14 @@ export default function RecordScreen() {
     } else {
       Alert.alert('Error', 'Failed to save reading');
     }
-  };
+  } catch (e) {
+    console.error('Save reading exception:', e);
+    Alert.alert('Error', 'Failed to save reading');
+  } finally {
+    setIsSaving(false);
+  }
+};
+
 
   const handleCancel = () => {
     console.log('User tapped Cancel button');
