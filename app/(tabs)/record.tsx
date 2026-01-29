@@ -1,3 +1,5 @@
+// app/(tabs)/record.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -17,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { Track, LaneReading } from '@/types/TrackData';
+import { Track, LaneReading, TrackReading } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -51,23 +53,38 @@ export default function RecordScreen() {
     };
   }
 
-  // ✅ Track-local forever: use device timezone at the moment you record (you’re at the track)
-  const getDeviceTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // ✅ Track-local forever: best-effort timezone
+  const getDeviceTimeZone = () => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+      return 'UTC';
+    }
+  };
 
-  // ✅ Get YYYY-MM-DD for a specific timezone from a timestamp
+  // ✅ Get YYYY-MM-DD for a specific timezone from a timestamp (safe)
   const trackDateString = (ms: number, timeZone: string) => {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(new Date(ms));
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(new Date(ms));
 
-    const y = parts.find((p) => p.type === 'year')?.value ?? '0000';
-    const m = parts.find((p) => p.type === 'month')?.value ?? '00';
-    const d = parts.find((p) => p.type === 'day')?.value ?? '00';
+      const y = parts.find((p) => p.type === 'year')?.value ?? '0000';
+      const m = parts.find((p) => p.type === 'month')?.value ?? '00';
+      const d = parts.find((p) => p.type === 'day')?.value ?? '00';
 
-    return `${y}-${m}-${d}`;
+      return `${y}-${m}-${d}`;
+    } catch {
+      // fallback: device-local date key
+      const d = new Date(ms);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
   };
 
   const loadTracks = useCallback(async () => {
@@ -136,71 +153,73 @@ export default function RecordScreen() {
   };
 
   const handleSaveReading = async () => {
-  console.log('User tapped Save Reading button');
+    console.log('User tapped Save Reading button');
 
-  if (!selectedTrack) {
-    Alert.alert('Error', 'Please select a track');
-    return;
-  }
-
-  setIsSaving(true);
-
-  try {
-    const now = new Date();
-    const ms = now.getTime();
-
-    const timeZone = getDeviceTimeZone();
-    const trackDate = trackDateString(ms, timeZone);
-    const time12Hour = formatTimeTo12Hour(now);
-
-    const reading: any = {
-      trackId: selectedTrack.id,
-
-      // keep legacy fields aligned to track day
-      date: trackDate,
-      time: time12Hour,
-
-      timestamp: ms,
-      year: Number(trackDate.slice(0, 4)),
-      session,
-      pair,
-      leftLane,
-      rightLane,
-
-      // new fields
-      timeZone,
-      trackDate,
-    };
-
-    console.log('Saving new reading:', reading);
-
-    const savedReading = await SupabaseStorageService.createReading(reading);
-
-    if (savedReading) {
-      console.log('Reading saved successfully');
-      Alert.alert('Success', 'Reading saved successfully', [
-        {
-          text: 'OK',
-          onPress: () => {
-            setLeftLane(getEmptyLaneReading());
-            setRightLane(getEmptyLaneReading());
-            setSession('');
-            setPair('');
-            Keyboard.dismiss();
-          },
-        },
-      ]);
-    } else {
-      Alert.alert('Error', 'Failed to save reading');
+    if (!selectedTrack) {
+      Alert.alert('Error', 'Please select a track');
+      return;
     }
-  } catch (e) {
-    console.error('Save reading exception:', e);
-    Alert.alert('Error', 'Failed to save reading');
-  } finally {
-    setIsSaving(false);
-  }
-};
 
+    setIsSaving(true);
+
+    try {
+      const now = new Date();
+      const ms = now.getTime();
+
+      const timeZone = getDeviceTimeZone();
+      const trackDate = trackDateString(ms, timeZone);
+      const time12Hour = formatTimeTo12Hour(now);
+
+      const reading: Omit<TrackReading, 'id'> = {
+        trackId: selectedTrack.id,
+
+        // keep legacy fields aligned to track day
+        date: trackDate,
+        time: time12Hour,
+
+        // single source of truth
+        timestamp: ms,
+        year: Number(trackDate.slice(0, 4)),
+
+        session: session || undefined,
+        pair: pair || undefined,
+
+        leftLane,
+        rightLane,
+
+        // new fields
+        timeZone,
+        trackDate,
+      };
+
+      console.log('Saving new reading:', reading);
+
+      const savedReading = await SupabaseStorageService.createReading(reading);
+
+      if (savedReading) {
+        console.log('Reading saved successfully');
+        Alert.alert('Success', 'Reading saved successfully', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setLeftLane(getEmptyLaneReading());
+              setRightLane(getEmptyLaneReading());
+              setSession('');
+              setPair('');
+              Keyboard.dismiss();
+            },
+          },
+        ]);
+      } else {
+        Alert.alert('Error', 'Failed to save reading');
+      }
+    } catch (e) {
+      console.error('Save reading exception:', e);
+      Alert.alert('Error', 'Failed to save reading');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleCancel = () => {
     console.log('User tapped Cancel button');
@@ -355,12 +374,7 @@ export default function RecordScreen() {
         </View>
 
         <TouchableOpacity style={styles.imageButton} onPress={() => pickImage(laneType)}>
-          <IconSymbol
-            ios_icon_name="camera"
-            android_material_icon_name="camera"
-            size={24}
-            color={colors.primary}
-          />
+          <IconSymbol ios_icon_name="camera" android_material_icon_name="camera" size={24} color={colors.primary} />
           <Text style={styles.imageButtonText}>{lane.imageUri ? 'Change Photo' : 'Add Photo'}</Text>
         </TouchableOpacity>
 
@@ -470,22 +484,14 @@ export default function RecordScreen() {
               <View style={styles.dropdownHeader}>
                 <Text style={styles.dropdownTitle}>Select Track</Text>
                 <TouchableOpacity onPress={() => setShowTrackDropdown(false)}>
-                  <IconSymbol
-                    ios_icon_name="xmark"
-                    android_material_icon_name="close"
-                    size={24}
-                    color={colors.text}
-                  />
+                  <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={styles.dropdownList}>
                 {tracks.map((track, index) => (
                   <TouchableOpacity
                     key={`track-dropdown-${track.id}-${index}`}
-                    style={[
-                      styles.dropdownItem,
-                      selectedTrack?.id === track.id && styles.dropdownItemActive,
-                    ]}
+                    style={[styles.dropdownItem, selectedTrack?.id === track.id && styles.dropdownItemActive]}
                     onPress={() => handleTrackSelect(track)}
                   >
                     <Text
@@ -497,12 +503,7 @@ export default function RecordScreen() {
                       {track.name}
                     </Text>
                     {selectedTrack?.id === track.id && (
-                      <IconSymbol
-                        ios_icon_name="checkmark"
-                        android_material_icon_name="check"
-                        size={20}
-                        color={colors.primary}
-                      />
+                      <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={20} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                 ))}
