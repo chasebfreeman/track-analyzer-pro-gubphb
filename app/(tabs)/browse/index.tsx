@@ -29,8 +29,6 @@ export default function BrowseScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
 
-  // ---------- Helpers ----------
-
   // Viewer-local fallback only (avoid using this for grouping if we have trackDate)
   const localDateKeyFromTimestamp = (ms: number) => {
     const d = new Date(ms);
@@ -50,7 +48,6 @@ export default function BrowseScreen() {
         hour12: true,
       }).format(new Date(ms));
     } catch {
-      // If Intl/timeZone fails for any reason, fallback to device local time
       const d = new Date(ms);
       let hours = d.getHours();
       const minutes = String(d.getMinutes()).padStart(2, '0');
@@ -72,38 +69,23 @@ export default function BrowseScreen() {
     return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
-  // ✅ Choose the correct “day key” for grouping:
-  // 1) trackDate (new rows)
-  // 2) date (legacy, but we’re saving it as trackDate too)
-  // 3) viewer-local fallback (very old/unknown rows)
   const getDayKey = (reading: TrackReading) => {
-  return reading.trackDate || reading.date || localDateKeyFromTimestamp(reading.timestamp);
-};
+    return reading.trackDate || reading.date || localDateKeyFromTimestamp(reading.timestamp);
+  };
 
-
-  // ✅ Choose the correct time string to display:
-  // 1) timestamp + timeZone (always track-local)
-  // 2) reading.time (legacy)
   const getDisplayTime = (reading: TrackReading) => {
-  if (reading.timeZone && reading.timestamp) {
-    return formatTimeInTimeZone(reading.timestamp, reading.timeZone);
-  }
-  return reading.time;
-};
-
-
-  // ---------- Data loading ----------
+    if (reading.timeZone && reading.timestamp) {
+      return formatTimeInTimeZone(reading.timestamp, reading.timeZone);
+    }
+    return reading.time;
+  };
 
   const loadReadings = useCallback(async (trackId: string, year: number | null) => {
     console.log('Loading readings for track:', trackId, 'year:', year);
-    const trackReadings = await SupabaseStorageService.getReadingsForTrack(
-      trackId,
-      year || undefined
-    );
+    const trackReadings = await SupabaseStorageService.getReadingsForTrack(trackId, year || undefined);
 
     setReadings(trackReadings);
 
-    // ✅ Group readings by TRACK day (not viewer day)
     const grouped: { [date: string]: TrackReading[] } = {};
     trackReadings.forEach((reading) => {
       const key = getDayKey(reading);
@@ -133,16 +115,17 @@ export default function BrowseScreen() {
     }
   }, [selectedTrack]);
 
+  // ✅ FIX: years should be per-track
   const loadAvailableYears = useCallback(async () => {
     console.log('Loading available years');
-    const years = await SupabaseStorageService.getAvailableYears();
+    const years = await SupabaseStorageService.getAvailableYears(selectedTrack?.id);
     setAvailableYears(years);
 
     if (years.length > 0 && selectedYear === null) {
       console.log('Auto-selecting most recent year:', years[0]);
       setSelectedYear(years[0]);
     }
-  }, [selectedYear]);
+  }, [selectedYear, selectedTrack?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -177,16 +160,11 @@ export default function BrowseScreen() {
     }
   };
 
-  // ---------- UI handlers ----------
-
   const handleReadingPress = (reading: TrackReading) => {
     console.log('User tapped reading:', reading.id);
     router.push({
       pathname: '/(tabs)/browse/reading-detail',
-      params: {
-        readingId: reading.id,
-        trackId: reading.trackId,
-      },
+      params: { readingId: reading.id, trackId: reading.trackId },
     });
   };
 
@@ -198,10 +176,12 @@ export default function BrowseScreen() {
     setExpandedDays(newExpanded);
   };
 
+  // ✅ FIX: reset year when changing tracks
   const handleTrackSelect = (track: Track) => {
     console.log('User selected track:', track.name);
     setSelectedTrack(track);
     setShowTrackDropdown(false);
+    setSelectedYear(null);
   };
 
   const styles = getStyles(colors);
@@ -214,21 +194,13 @@ export default function BrowseScreen() {
           <Text style={styles.headerTitle}>Browse Readings</Text>
         </View>
 
-        {/* Year Filter */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.yearFilter}
-          contentContainerStyle={styles.yearFilterContent}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.yearFilter} contentContainerStyle={styles.yearFilterContent}>
           <TouchableOpacity
             key="all-years-filter"
             style={[styles.yearChip, selectedYear === null && styles.yearChipActive]}
             onPress={() => setSelectedYear(null)}
           >
-            <Text style={[styles.yearChipText, selectedYear === null && styles.yearChipTextActive]}>
-              All Years
-            </Text>
+            <Text style={[styles.yearChipText, selectedYear === null && styles.yearChipTextActive]}>All Years</Text>
           </TouchableOpacity>
 
           {availableYears.map((year, yearIndex) => (
@@ -237,50 +209,26 @@ export default function BrowseScreen() {
               style={[styles.yearChip, selectedYear === year && styles.yearChipActive]}
               onPress={() => setSelectedYear(year)}
             >
-              <Text style={[styles.yearChipText, selectedYear === year && styles.yearChipTextActive]}>
-                {year}
-              </Text>
+              <Text style={[styles.yearChipText, selectedYear === year && styles.yearChipTextActive]}>{year}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        {/* Track Dropdown */}
         <View style={styles.trackSelector}>
-          <TouchableOpacity
-            style={styles.dropdownButton}
-            onPress={() => setShowTrackDropdown(true)}
-          >
-            <Text style={styles.dropdownButtonText}>
-              {selectedTrack ? selectedTrack.name : 'Choose a track...'}
-            </Text>
-            <IconSymbol
-              ios_icon_name="chevron.down"
-              android_material_icon_name="arrow-downward"
-              size={20}
-              color={colors.text}
-            />
+          <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowTrackDropdown(true)}>
+            <Text style={styles.dropdownButtonText}>{selectedTrack ? selectedTrack.name : 'Choose a track...'}</Text>
+            <IconSymbol ios_icon_name="chevron.down" android_material_icon_name="arrow-downward" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         <ScrollView
           style={styles.readingsList}
           contentContainerStyle={styles.readingsListContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
         >
           {groupedReadings.length === 0 ? (
             <View key="empty-state" style={styles.emptyState}>
-              <IconSymbol
-                ios_icon_name="doc.text"
-                android_material_icon_name="description"
-                size={64}
-                color={colors.textSecondary}
-              />
+              <IconSymbol ios_icon_name="doc.text" android_material_icon_name="description" size={64} color={colors.textSecondary} />
               <Text style={styles.emptyStateText}>No readings yet</Text>
               <Text style={styles.emptyStateSubtext}>Record your first reading in the Record tab</Text>
             </View>
@@ -288,10 +236,7 @@ export default function BrowseScreen() {
             <>
               {groupedReadings.map((day, dayIndex) => (
                 <View key={`day-${day.date}-${dayIndex}`} style={styles.dayGroup}>
-                  <TouchableOpacity
-                    style={styles.dayHeader}
-                    onPress={() => toggleDayExpansion(day.date)}
-                  >
+                  <TouchableOpacity style={styles.dayHeader} onPress={() => toggleDayExpansion(day.date)}>
                     <View>
                       <Text style={styles.dayDate}>{formatDateWithDay(day.date)}</Text>
                       <Text style={styles.dayCount}>{day.readings.length} reading(s)</Text>
@@ -314,23 +259,13 @@ export default function BrowseScreen() {
                             onPress={() => handleReadingPress(reading)}
                           >
                             <View style={styles.readingHeader}>
-                              <IconSymbol
-                                ios_icon_name="clock"
-                                android_material_icon_name="access-time"
-                                size={16}
-                                color={colors.primary}
-                              />
-                              {/* ✅ show track-local time */}
+                              <IconSymbol ios_icon_name="clock" android_material_icon_name="access-time" size={16} color={colors.primary} />
                               <Text style={styles.readingTime}>{getDisplayTime(reading)}</Text>
                             </View>
 
                             <View style={styles.readingData}>
-                              <Text style={styles.readingDataText}>
-                                Left: {reading.leftLane.trackTemp}°F, UV {reading.leftLane.uvIndex}
-                              </Text>
-                              <Text style={styles.readingDataText}>
-                                Right: {reading.rightLane.trackTemp}°F, UV {reading.rightLane.uvIndex}
-                              </Text>
+                              <Text style={styles.readingDataText}>Left: {reading.leftLane.trackTemp}°F, UV {reading.leftLane.uvIndex}</Text>
+                              <Text style={styles.readingDataText}>Right: {reading.rightLane.trackTemp}°F, UV {reading.rightLane.uvIndex}</Text>
                             </View>
 
                             <IconSymbol
@@ -351,28 +286,13 @@ export default function BrowseScreen() {
           )}
         </ScrollView>
 
-        {/* Track Dropdown Modal */}
-        <Modal
-          visible={showTrackDropdown}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowTrackDropdown(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowTrackDropdown(false)}
-          >
+        <Modal visible={showTrackDropdown} transparent animationType="fade" onRequestClose={() => setShowTrackDropdown(false)}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTrackDropdown(false)}>
             <View style={styles.dropdownModal}>
               <View style={styles.dropdownHeader}>
                 <Text style={styles.dropdownTitle}>Select Track</Text>
                 <TouchableOpacity onPress={() => setShowTrackDropdown(false)}>
-                  <IconSymbol
-                    ios_icon_name="xmark"
-                    android_material_icon_name="close"
-                    size={24}
-                    color={colors.text}
-                  />
+                  <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
               </View>
 
@@ -380,28 +300,11 @@ export default function BrowseScreen() {
                 {tracks.map((track, index) => (
                   <TouchableOpacity
                     key={`track-dropdown-${track.id}-${index}`}
-                    style={[
-                      styles.dropdownItem,
-                      selectedTrack?.id === track.id && styles.dropdownItemActive,
-                    ]}
+                    style={[styles.dropdownItem, selectedTrack?.id === track.id && styles.dropdownItemActive]}
                     onPress={() => handleTrackSelect(track)}
                   >
-                    <Text
-                      style={[
-                        styles.dropdownItemText,
-                        selectedTrack?.id === track.id && styles.dropdownItemTextActive,
-                      ]}
-                    >
-                      {track.name}
-                    </Text>
-                    {selectedTrack?.id === track.id && (
-                      <IconSymbol
-                        ios_icon_name="checkmark"
-                        android_material_icon_name="check"
-                        size={20}
-                        color={colors.primary}
-                      />
-                    )}
+                    <Text style={[styles.dropdownItemText, selectedTrack?.id === track.id && styles.dropdownItemTextActive]}>{track.name}</Text>
+                    {selectedTrack?.id === track.id && <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={20} color={colors.primary} />}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -510,3 +413,4 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     emptyStateSubtext: { fontSize: 14, color: colors.textSecondary, marginTop: 8, textAlign: 'center' },
   });
 }
+::contentReference[oaicite:0]{index=0}
