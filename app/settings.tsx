@@ -340,7 +340,7 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.versionText}>Track Analyzer Pro v1.0.0</Text>
+          <Text style={styles.versionText}>Track Analyzer Pro v1.1</Text>
         </ScrollView>
       </SafeAreaView>
     </>
