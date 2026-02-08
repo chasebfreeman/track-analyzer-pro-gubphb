@@ -1,13 +1,19 @@
 import type { ExpoConfig } from "expo/config";
 
 const config: ExpoConfig = {
-  name: "Track Analyzer Pro",        // what users see on the home screen / TestFlight display name
-  slug: "track-analyzer",            // MUST match the existing Expo project slug for that projectId
+  name: "Track Analyzer Pro",
+  slug: "track-analyzer",
+
+  ios: {
+    bundleIdentifier: "com.cfreeman4798.trackanalyzerpro"
+  },
+
   extra: {
     eas: {
       projectId: "576ab141-f770-4852-bc5b-40e273d22fe0",
     },
   },
+
   plugins: [
     [
       "expo-image-picker",
@@ -22,5 +28,3 @@ const config: ExpoConfig = {
 };
 
 export default config;
-
-
