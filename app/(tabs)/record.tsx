@@ -16,7 +16,7 @@ import {
   InputAccessoryView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useFocusEffect, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Track, LaneReading, TrackReading } from '@/types/TrackData';
@@ -28,7 +28,6 @@ const INPUT_ACCESSORY_VIEW_ID = 'uniqueKeyboardAccessoryID';
 export default function RecordScreen() {
   const colors = useThemeColors();
   const params = useLocalSearchParams();
-  const router = useRouter();
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -38,6 +37,10 @@ export default function RecordScreen() {
   const [rightLane, setRightLane] = useState<LaneReading>(getEmptyLaneReading());
   const [isSaving, setIsSaving] = useState(false);
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
+
+  // NEW: image action modal
+  const [showImageActions, setShowImageActions] = useState(false);
+  const [imageLaneTarget, setImageLaneTarget] = useState<'left' | 'right' | null>(null);
 
   function getEmptyLaneReading(): LaneReading {
     return {
@@ -78,7 +81,6 @@ export default function RecordScreen() {
 
       return `${y}-${m}-${d}`;
     } catch {
-      // fallback: device-local date key
       const d = new Date(ms);
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -97,7 +99,6 @@ export default function RecordScreen() {
         hour12: true,
       }).format(new Date(ms));
     } catch {
-      // fallback: device-local no seconds
       const d = new Date(ms);
       let hours = d.getHours();
       const minutes = String(d.getMinutes()).padStart(2, '0');
@@ -134,11 +135,25 @@ export default function RecordScreen() {
     loadTracks();
   }, [loadTracks]);
 
-  const pickImage = async (lane: 'left' | 'right') => {
-    console.log('User tapped pick image for', lane, 'lane');
+  const setLaneImage = (lane: 'left' | 'right', uri: string) => {
+    if (lane === 'left') setLeftLane({ ...leftLane, imageUri: uri });
+    else setRightLane({ ...rightLane, imageUri: uri });
+  };
+
+  // NEW: open actions modal (camera or library)
+  const openImageActions = (lane: 'left' | 'right') => {
+    setImageLaneTarget(lane);
+    setShowImageActions(true);
+  };
+
+  const pickFromLibrary = async () => {
+    const lane = imageLaneTarget;
+    setShowImageActions(false);
+    if (!lane) return;
+
+    console.log('Pick image from library for', lane);
 
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
     if (!permissionResult.granted) {
       Alert.alert('Permission Required', 'Please allow access to your photo library');
       return;
@@ -152,12 +167,41 @@ export default function RecordScreen() {
 
     if (!result.canceled && result.assets[0]) {
       console.log('Image selected:', result.assets[0].uri);
-      if (lane === 'left') {
-        setLeftLane({ ...leftLane, imageUri: result.assets[0].uri });
-      } else {
-        setRightLane({ ...rightLane, imageUri: result.assets[0].uri });
-      }
+      setLaneImage(lane, result.assets[0].uri);
     }
+  };
+
+  const takePhoto = async () => {
+    const lane = imageLaneTarget;
+    setShowImageActions(false);
+    if (!lane) return;
+
+    console.log('Take photo for', lane);
+
+    const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!camPerm.granted) {
+      Alert.alert('Permission Required', 'Please allow camera access to take a photo');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      console.log('Photo captured:', result.assets[0].uri);
+      setLaneImage(lane, result.assets[0].uri);
+    }
+  };
+
+  const removePhoto = () => {
+    const lane = imageLaneTarget;
+    setShowImageActions(false);
+    if (!lane) return;
+
+    if (lane === 'left') setLeftLane({ ...leftLane, imageUri: undefined });
+    else setRightLane({ ...rightLane, imageUri: undefined });
   };
 
   const handleSaveReading = async () => {
@@ -177,24 +221,19 @@ export default function RecordScreen() {
       const trackDate = trackDateString(ms, timeZone);
       const time12Hour = trackTimeString(ms, timeZone);
 
+      const y = Number(trackDate.slice(0, 4));
+      const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
+
       const reading: Omit<TrackReading, 'id'> = {
         trackId: selectedTrack.id,
-
-        // keep legacy fields aligned to the SAME track-local day/time we store
         date: trackDate,
         time: time12Hour,
-
-        // single source of truth
         timestamp: ms,
-        year: Number(trackDate.slice(0, 4)),
-
+        year,
         session: session || undefined,
         pair: pair || undefined,
-
         leftLane,
         rightLane,
-
-        // new fields
         timeZone,
         trackDate,
       };
@@ -380,9 +419,9 @@ export default function RecordScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.imageButton} onPress={() => pickImage(laneType)}>
+        <TouchableOpacity style={styles.imageButton} onPress={() => openImageActions(laneType)}>
           <IconSymbol ios_icon_name="camera" android_material_icon_name="camera" size={24} color={colors.primary} />
-          <Text style={styles.imageButtonText}>{lane.imageUri ? 'Change Photo' : 'Add Photo'}</Text>
+          <Text style={styles.imageButtonText}>{lane.imageUri ? 'Photo Options' : 'Add Photo'}</Text>
         </TouchableOpacity>
 
         {lane.imageUri && <Image source={{ uri: lane.imageUri }} style={styles.previewImage} />}
@@ -457,7 +496,11 @@ export default function RecordScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} onPress={handleSaveReading} disabled={isSaving}>
+                <TouchableOpacity
+                  style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+                  onPress={handleSaveReading}
+                  disabled={isSaving}
+                >
                   <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save Reading'}</Text>
                 </TouchableOpacity>
               </View>
@@ -465,6 +508,7 @@ export default function RecordScreen() {
           )}
         </ScrollView>
 
+        {/* Track dropdown modal */}
         <Modal
           visible={showTrackDropdown}
           transparent={true}
@@ -495,6 +539,42 @@ export default function RecordScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* NEW: Image actions modal */}
+        <Modal
+          visible={showImageActions}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowImageActions(false)}
+        >
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowImageActions(false)}>
+            <View style={styles.dropdownModal}>
+              <View style={styles.dropdownHeader}>
+                <Text style={styles.dropdownTitle}>Photo</Text>
+                <TouchableOpacity onPress={() => setShowImageActions(false)}>
+                  <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ padding: 16, gap: 12 }}>
+                <TouchableOpacity style={styles.actionRow} onPress={takePhoto}>
+                  <IconSymbol ios_icon_name="camera" android_material_icon_name="photo_camera" size={20} color={colors.primary} />
+                  <Text style={styles.actionText}>Take Photo</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.actionRow} onPress={pickFromLibrary}>
+                  <IconSymbol ios_icon_name="photo" android_material_icon_name="photo" size={20} color={colors.primary} />
+                  <Text style={styles.actionText}>Choose from Library</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.actionRow} onPress={removePhoto}>
+                  <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color={colors.primary} />
+                  <Text style={styles.actionText}>Remove Photo</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -738,6 +818,19 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       fontSize: 17,
       fontWeight: '600',
       color: '#FFFFFF',
+    },
+
+    // NEW: action rows
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      gap: 12,
+    },
+    actionText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
     },
   });
 }
