@@ -14,5 +14,16 @@ const config: ExpoConfig = {
   ],
 };
 
-export default config;
+export default {
+  expo: {
+    name: "Track Analyzer Pro",
+    slug: "track-analyzer-pro",
+    extra: {
+      eas: {
+        projectId: "576ab141-f770-4852-bc5b-40e273d22fe0"
+      }
+    }
+  }
+};
+
 
