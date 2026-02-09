@@ -19,6 +19,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "deviceFamily": ["iphone", "ipad"],
       "bundleIdentifier": "com.cfreeman4798.trackanalyzerpro",
       "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
       "infoPlist": {
