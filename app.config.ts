@@ -1,10 +1,8 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
-  // ✅ Keep everything from app.json (icon, splash, plugins, android settings, etc.)
-  ...config,
+  ...config, // <-- this is the merge
 
-  // ✅ You can still force a few must-not-break fields
   name: "Track Analyzer Pro",
   slug: "track-analyzer-pro",
 
