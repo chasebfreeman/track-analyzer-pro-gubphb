@@ -161,6 +161,7 @@ export default function HistoricalAveragesChart({
           showValuesOnTopOfBars
           withInnerLines={true}
           yAxisSuffix=""
+          yAxisLabel=""
         />
       </ScrollView>
     </View>

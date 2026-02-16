@@ -7,10 +7,11 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Check if Supabase is configured
 export const isSupabaseConfigured = () => {
-  const configured = SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '';
+  const configured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
   console.log('Supabase configured (web):', configured);
   return configured;
 };
+
 
 // Simple localStorage wrapper with error handling and fallback
 const createStorageAdapter = () => {

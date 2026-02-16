@@ -17,12 +17,17 @@ import { useThemeColors } from '@/styles/commonStyles';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+
+type MaterialIconName = keyof typeof MaterialIcons.glyphMap;
+
 interface TabConfig {
   name: string;
   ios_icon_name: string;
-  android_material_icon_name: string;
+  android_material_icon_name: MaterialIconName;
   label: string;
 }
+
 
 const TAB_CONFIGS: TabConfig[] = [
   { name: 'tracks', ios_icon_name: 'map.fill', android_material_icon_name: 'map', label: 'Tracks' },
@@ -123,7 +128,7 @@ export default function FloatingTabBar({ state, descriptors, navigation }: Botto
                     accessibilityRole="button"
                     accessibilityState={isFocused ? { selected: true } : {}}
                     accessibilityLabel={options.tabBarAccessibilityLabel}
-                    testID={options.tabBarTestID}
+                    testID={(options as any).tabBarButtonTestID}
                     onPress={onPress}
                     onLongPress={onLongPress}
                     style={[

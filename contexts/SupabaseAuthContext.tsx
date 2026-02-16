@@ -139,7 +139,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       value={{
         user,
         session,
-        isSupabaseEnabled: isSupabaseConfigured,
+        isSupabaseEnabled: isSupabaseConfigured(),
         signInWithEmail,
         signUpWithEmail,
         signOut,

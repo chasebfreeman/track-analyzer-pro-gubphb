@@ -109,7 +109,12 @@ export default function AIInsightsCard({ trackId, date }: AIInsightsCardProps) {
     }
   };
 
-  const getInsightIcon = (type: string) => {
+ type MaterialIconName = keyof typeof import("@expo/vector-icons/MaterialIcons").default.glyphMap;
+
+  const getInsightIcon = (
+  type: string
+): { ios: string; android: MaterialIconName } => {
+
     switch (type) {
       case 'trend':
         return { ios: 'chart.line.uptrend.xyaxis', android: 'trending-up' };
