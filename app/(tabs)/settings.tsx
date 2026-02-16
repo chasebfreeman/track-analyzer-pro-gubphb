@@ -280,7 +280,7 @@ export default function SettingsScreen() {
                 />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Version</Text>
-                  <Text style={styles.infoValue}>1.0.0</Text>
+                  <Text style={styles.infoValue}>1.1</Text>
                 </View>
               </View>
             </View>
