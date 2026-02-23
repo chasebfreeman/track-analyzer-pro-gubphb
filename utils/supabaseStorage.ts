@@ -194,7 +194,8 @@ export class SupabaseStorageService {
         return {
           id: reading.id,
           trackId: reading.track_id,
-
+          left_photo_path: reading.left_photo_path ?? null,
+          right_photo_path: reading.right_photo_path ?? null,  
           date: reading.date ?? trackDate ?? '',
           time: reading.time ?? '',
 
@@ -346,19 +347,24 @@ export class SupabaseStorageService {
   }
 
 
-  // ============================================
-  // IMAGE DISPLAY (PRIVATE BUCKET -> SIGNED URL)
+    // ============================================
+  // PRIVATE BUCKET IMAGE DISPLAY (SIGNED URLS)
   // ============================================
 
-  static async getSignedImageUrl(objectPath: string, expiresInSeconds: number = 60 * 60): Promise<string | null> {
+  static async getSignedImageUrl(
+    objectPath: string,
+    expiresInSeconds: number = 60 * 60
+  ): Promise<string | null> {
     if (!isSupabaseConfigured()) return null;
 
     try {
-      const BUCKET = 'reading-photos';
+      const BUCKET = 'reading-photos'; // <-- must match your bucket id (lowercase)
 
       if (!objectPath) return null;
 
-      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(objectPath, expiresInSeconds);
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(objectPath, expiresInSeconds);
 
       if (error) {
         console.error('Error creating signed URL:', error, 'path:', objectPath);
