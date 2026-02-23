@@ -58,6 +58,7 @@ export default function RecordScreen() {
     };
   }
 
+
   // ✅ Track-local forever: best-effort timezone
   const getDeviceTimeZone = () => {
     try {
@@ -244,23 +245,27 @@ export default function RecordScreen() {
 
       const savedReading = await SupabaseStorageService.createReading(reading);
 
-      if (savedReading) {
-        console.log('Reading saved successfully');
-        Alert.alert('Success', 'Reading saved successfully', [
-          {
-            text: 'OK',
-            onPress: () => {
-              setLeftLane(getEmptyLaneReading());
-              setRightLane(getEmptyLaneReading());
-              setSession('');
-              setPair('');
-              Keyboard.dismiss();
-            },
-          },
-        ]);
-      } else {
-        Alert.alert('Error', 'Failed to save reading');
-      }
+if (savedReading) {
+  console.log("Saved reading id:", savedReading.id);
+  console.log("Left imageUri:", leftLane.imageUri);
+  console.log("Right imageUri:", rightLane.imageUri);
+
+  console.log('Reading saved successfully');
+  Alert.alert('Success', 'Reading saved successfully', [
+    {
+      text: 'OK',
+      onPress: () => {
+        setLeftLane(getEmptyLaneReading());
+        setRightLane(getEmptyLaneReading());
+        setSession('');
+        setPair('');
+        Keyboard.dismiss();
+      },
+    },
+  ]);
+} else {
+  Alert.alert('Error', 'Failed to save reading');
+}
     } catch (e) {
       console.error('Save reading exception:', e);
       Alert.alert('Error', 'Failed to save reading');

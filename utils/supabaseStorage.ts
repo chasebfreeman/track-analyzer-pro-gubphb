@@ -2,6 +2,8 @@
 
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Track, TrackReading, LaneReading } from '@/types/TrackData';
+import * as FileSystem from 'expo-file-system';
+import { decode as base64Decode } from 'base-64';
 
 export class SupabaseStorageService {
   // ============================================
@@ -67,7 +69,7 @@ export class SupabaseStorageService {
 
       if (error) {
         console.error('Error fetching tracks:', error);
-        if (error.code === '42P17') {
+        if ((error as any).code === '42P17') {
           console.log('RLS policy error detected - this should be fixed now. Please restart the app.');
         }
         return [];
@@ -185,11 +187,9 @@ export class SupabaseStorageService {
         const ts = this.safeNumber(reading.timestamp);
         const timeZone: string | undefined = reading.time_zone ?? undefined;
 
-        // Prefer DB track_date. Fallback to legacy date. If both missing but timestamp exists, compute.
         const trackDate: string | undefined =
           reading.track_date ?? reading.date ?? (ts !== null ? this.getTrackDateFromTimestamp(ts, timeZone ?? 'UTC') : undefined);
 
-        // Prefer DB year. Else derive from trackDate (preferred) or timestamp.
         const dbYear = this.safeNumber(reading.year);
         const derivedYear = dbYear ?? this.getYearFromTrackDate(trackDate, ts);
 
@@ -197,11 +197,9 @@ export class SupabaseStorageService {
           id: reading.id,
           trackId: reading.track_id,
 
-          // legacy (kept for compatibility / old UI)
           date: reading.date ?? trackDate ?? '',
           time: reading.time ?? '',
 
-          // single source of truth
           timestamp: ts ?? 0,
           year: derivedYear ?? 0,
 
@@ -212,7 +210,6 @@ export class SupabaseStorageService {
           leftLane: reading.left_lane as LaneReading,
           rightLane: reading.right_lane as LaneReading,
 
-          // track-local forever
           timeZone,
           trackDate,
         };
@@ -233,32 +230,22 @@ export class SupabaseStorageService {
 
     try {
       const { data: userData } = await supabase.auth.getUser();
-
-      const timestamp = Math.trunc(reading.timestamp); // keep bigint ms clean
+      const timestamp = Math.trunc(reading.timestamp);
 
       const { data, error } = await supabase
         .from('readings')
         .insert({
           track_id: reading.trackId,
-
-          // legacy columns (kept aligned with track day)
           date: reading.date,
           time: reading.time,
-
-          // source of truth
           timestamp,
           year: reading.year,
-
           session: reading.session ?? null,
           pair: reading.pair ?? null,
-
           class_currently_running: reading.classCurrentlyRunning ?? null,
           left_lane: reading.leftLane,
           right_lane: reading.rightLane,
-
           user_id: userData.user?.id,
-
-          // track-local forever
           time_zone: reading.timeZone ?? null,
           track_date: reading.trackDate ?? null,
         })
@@ -277,20 +264,15 @@ export class SupabaseStorageService {
       return {
         id: data.id,
         trackId: data.track_id,
-
         date: data.date,
         time: data.time,
-
         timestamp: ts,
         year: this.safeNumber(data.year) ?? reading.year,
-
         session: data.session ?? undefined,
         pair: data.pair ?? undefined,
         classCurrentlyRunning: data.class_currently_running ?? undefined,
-
         leftLane: data.left_lane as LaneReading,
         rightLane: data.right_lane as LaneReading,
-
         timeZone: data.time_zone ?? undefined,
         trackDate: data.track_date ?? undefined,
       };
@@ -319,9 +301,7 @@ export class SupabaseStorageService {
       if (updates.session !== undefined) updateData.session = updates.session;
       if (updates.pair !== undefined) updateData.pair = updates.pair;
 
-      if (updates.classCurrentlyRunning !== undefined) {
-        updateData.class_currently_running = updates.classCurrentlyRunning;
-      }
+      if (updates.classCurrentlyRunning !== undefined) updateData.class_currently_running = updates.classCurrentlyRunning;
       if (updates.leftLane !== undefined) updateData.left_lane = updates.leftLane;
       if (updates.rightLane !== undefined) updateData.right_lane = updates.rightLane;
 
@@ -368,52 +348,11 @@ export class SupabaseStorageService {
   }
 
   // ============================================
-  // UTILITY METHODS
+  // IMAGE UPLOAD (REAL SUPABASE STORAGE)
   // ============================================
 
-  static async getAvailableYears(trackId?: string): Promise<number[]> {
-    console.log('SupabaseStorageService: Fetching available years for track:', trackId);
-
-    if (!isSupabaseConfigured()) {
-      console.log('Supabase not configured');
-      return [];
-    }
-
-    try {
-      let query = supabase.from('readings').select('year');
-
-      if (trackId) {
-        query = query.eq('track_id', trackId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching years:', error);
-        if (error.code === '42P17') {
-          console.log('RLS policy error detected - this should be fixed now. Please restart the app.');
-        }
-        return [];
-      }
-
-      const years = [...new Set((data || []).map((r: any) => Number(r.year)))]
-        .filter((y) => Number.isFinite(y))
-        .sort((a, b) => b - a);
-
-      console.log('Available years:', years);
-      return years;
-    } catch (error) {
-      console.error('Exception fetching years:', error);
-      return [];
-    }
-  }
-
-  // ============================================
-  // IMAGE UPLOAD
-  // ============================================
-
-  static async uploadImage(uri: string, trackId: string, lane: 'left' | 'right'): Promise<string | null> {
-    console.log('SupabaseStorageService: Uploading image for track:', trackId, 'lane:', lane);
+  static async uploadImage(uri: string, readingId: string, lane: 'left' | 'right'): Promise<string | null> {
+    console.log('SupabaseStorageService: Uploading image for reading:', readingId, 'lane:', lane);
 
     if (!isSupabaseConfigured()) {
       console.log('Supabase not configured');
@@ -421,11 +360,80 @@ export class SupabaseStorageService {
     }
 
     try {
-      console.log('Image stored locally:', uri);
-      return uri;
+      const BUCKET = 'reading-photos';
+
+      // Read file as base64
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Convert base64 -> Uint8Array
+      const binaryString = base64Decode(base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+
+      // Guess extension/content-type
+      const match = uri.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
+      const ext = (match?.[1] || 'jpg').toLowerCase();
+
+      const contentType =
+        ext === 'jpg' || ext === 'jpeg'
+          ? 'image/jpeg'
+          : ext === 'png'
+          ? 'image/png'
+          : ext === 'heic'
+          ? 'image/heic'
+          : 'application/octet-stream';
+
+      const fileName = `${lane}-${Date.now()}.${ext}`;
+      const objectPath = `readings/${readingId}/${fileName}`;
+
+      const { error } = await supabase.storage.from(BUCKET).upload(objectPath, bytes, {
+        contentType,
+        upsert: true,
+      });
+
+      if (error) {
+        console.error('Storage upload error:', error);
+        return null;
+      }
+
+      console.log('Uploaded image to:', objectPath);
+      return objectPath;
     } catch (error) {
       console.error('Exception uploading image:', error);
       return null;
+    }
+  }
+
+  /**
+   * Step 3 helper: store uploaded photo paths onto the reading row.
+   * You must add these columns first (SQL below).
+   */
+  static async updateReadingPhotoPaths(params: {
+    readingId: string;
+    leftPhotoPath?: string | null;
+    rightPhotoPath?: string | null;
+  }): Promise<boolean> {
+    const { readingId, leftPhotoPath, rightPhotoPath } = params;
+
+    if (!isSupabaseConfigured()) return false;
+
+    try {
+      const updateData: any = {};
+      if (leftPhotoPath !== undefined) updateData.left_photo_path = leftPhotoPath;
+      if (rightPhotoPath !== undefined) updateData.right_photo_path = rightPhotoPath;
+
+      const { error } = await supabase.from('readings').update(updateData).eq('id', readingId);
+      if (error) {
+        console.error('Error updating photo paths:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception updating photo paths:', e);
+      return false;
     }
   }
 }

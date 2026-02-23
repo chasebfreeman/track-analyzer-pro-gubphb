@@ -10,11 +10,13 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts",
-    "workbox-config.js"
-  ],
+  "**/*.ts",
+  "**/*.tsx",
+  "**/*.d.ts",
+  "types/**/*.d.ts",
+  ".expo/types/**/*.ts",
+  "expo-env.d.ts",
+  "workbox-config.js"
+],
   "exclude": ["node_modules"]
 }
