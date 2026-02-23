@@ -18,6 +18,8 @@ import { TrackReading, Track } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 
 export default function ReadingDetailScreen() {
+  const [leftImageUrl, setLeftImageUrl] = useState<string | null>(null);
+  const [rightImageUrl, setRightImageUrl] = useState<string | null>(null);
   const colors = useThemeColors();
   const params = useLocalSearchParams();
   const router = useRouter();
@@ -54,6 +56,28 @@ export default function ReadingDetailScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  useEffect(() => {
+  async function loadSignedUrls() {
+    if (!reading) return;
+
+    // These field names MUST match what you save in Supabase:
+    const leftPath = (reading as any).left_photo_path ?? (reading as any).leftPhotoPath ?? null;
+    const rightPath = (reading as any).right_photo_path ?? (reading as any).rightPhotoPath ?? null;
+
+    const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
+      leftPhotoPath: leftPath,
+      rightPhotoPath: rightPath,
+      expiresInSeconds: 60 * 60 * 24, // 24 hours for testing
+    });
+
+    setLeftImageUrl(leftUrl);
+    setRightImageUrl(rightUrl);
+
+    console.log("Signed URLs:", { leftUrl: !!leftUrl, rightUrl: !!rightUrl });
+  }
+
+  loadSignedUrls();
+}, [reading]);
 
   const handleDelete = () => {
     console.log('User tapped Delete button');
@@ -149,17 +173,33 @@ export default function ReadingDetailScreen() {
           </View>
         )}
 
-        {lane.imageUri && (
+        {/* Left lane photo */}
+{title === "Left Lane" && leftImageUrl && (
   <TouchableOpacity
     activeOpacity={0.9}
     onPress={() =>
       router.push({
         pathname: "/(modals)/photo-viewer",
-        params: { url: lane.imageUri },
+        params: { url: leftImageUrl },
       })
     }
   >
-    <Image source={{ uri: lane.imageUri }} style={styles.laneImage} />
+    <Image source={{ uri: leftImageUrl }} style={styles.laneImage} />
+  </TouchableOpacity>
+)}
+
+{/* Right lane photo */}
+{title === "Right Lane" && rightImageUrl && (
+  <TouchableOpacity
+    activeOpacity={0.9}
+    onPress={() =>
+      router.push({
+        pathname: "/(modals)/photo-viewer",
+        params: { url: rightImageUrl },
+      })
+    }
+  >
+    <Image source={{ uri: rightImageUrl }} style={styles.laneImage} />
   </TouchableOpacity>
 )}
 

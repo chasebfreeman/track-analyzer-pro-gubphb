@@ -345,6 +345,48 @@ export class SupabaseStorageService {
     }
   }
 
+
+  // ============================================
+  // IMAGE DISPLAY (PRIVATE BUCKET -> SIGNED URL)
+  // ============================================
+
+  static async getSignedImageUrl(objectPath: string, expiresInSeconds: number = 60 * 60): Promise<string | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    try {
+      const BUCKET = 'reading-photos';
+
+      if (!objectPath) return null;
+
+      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(objectPath, expiresInSeconds);
+
+      if (error) {
+        console.error('Error creating signed URL:', error, 'path:', objectPath);
+        return null;
+      }
+
+      return data?.signedUrl ?? null;
+    } catch (e) {
+      console.error('Exception creating signed URL:', e);
+      return null;
+    }
+  }
+
+  static async getSignedUrlsForReading(params: {
+    leftPhotoPath?: string | null;
+    rightPhotoPath?: string | null;
+    expiresInSeconds?: number;
+  }): Promise<{ leftUrl: string | null; rightUrl: string | null }> {
+    const { leftPhotoPath, rightPhotoPath, expiresInSeconds = 60 * 60 } = params;
+
+    const [leftUrl, rightUrl] = await Promise.all([
+      leftPhotoPath ? this.getSignedImageUrl(leftPhotoPath, expiresInSeconds) : Promise.resolve(null),
+      rightPhotoPath ? this.getSignedImageUrl(rightPhotoPath, expiresInSeconds) : Promise.resolve(null),
+    ]);
+
+    return { leftUrl, rightUrl };
+  }
+
   // ============================================
   // IMAGE UPLOAD (REAL SUPABASE STORAGE)
   // ============================================
