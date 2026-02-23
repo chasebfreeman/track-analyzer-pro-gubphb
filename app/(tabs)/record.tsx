@@ -22,6 +22,8 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { Track, LaneReading, TrackReading } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from "expo-file-system";
+import { decode as base64Decode } from "base-64";
 
 const INPUT_ACCESSORY_VIEW_ID = 'uniqueKeyboardAccessoryID';
 
