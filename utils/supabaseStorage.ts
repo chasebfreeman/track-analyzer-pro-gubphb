@@ -2,8 +2,6 @@
 
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Track, TrackReading, LaneReading } from '@/types/TrackData';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode as base64Decode } from 'base-64';
 
 export class SupabaseStorageService {
   // ============================================
@@ -352,60 +350,60 @@ export class SupabaseStorageService {
   // ============================================
 
   static async uploadImage(uri: string, readingId: string, lane: 'left' | 'right'): Promise<string | null> {
-    console.log('SupabaseStorageService: Uploading image for reading:', readingId, 'lane:', lane);
+  console.log('SupabaseStorageService: Uploading image for reading:', readingId, 'lane:', lane);
 
-    if (!isSupabaseConfigured()) {
-      console.log('Supabase not configured');
-      return null;
-    }
-
-    try {
-      const BUCKET = 'reading-photos';
-
-      // Read file as base64
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-  encoding: "base64" as any,
-});
-
-      // Convert base64 -> Uint8Array
-      const binaryString = base64Decode(base64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-
-      // Guess extension/content-type
-      const match = uri.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
-      const ext = (match?.[1] || 'jpg').toLowerCase();
-
-      const contentType =
-        ext === 'jpg' || ext === 'jpeg'
-          ? 'image/jpeg'
-          : ext === 'png'
-          ? 'image/png'
-          : ext === 'heic'
-          ? 'image/heic'
-          : 'application/octet-stream';
-
-      const fileName = `${lane}-${Date.now()}.${ext}`;
-      const objectPath = `readings/${readingId}/${fileName}`;
-
-      const { error } = await supabase.storage.from(BUCKET).upload(objectPath, bytes, {
-        contentType,
-        upsert: true,
-      });
-
-      if (error) {
-        console.error('Storage upload error:', error);
-        return null;
-      }
-
-      console.log('Uploaded image to:', objectPath);
-      return objectPath;
-    } catch (error) {
-      console.error('Exception uploading image:', error);
-      return null;
-    }
+  if (!isSupabaseConfigured()) {
+    console.log('Supabase not configured');
+    return null;
   }
+
+  try {
+    const BUCKET = 'reading-photos';
+
+    // Guess extension/content-type
+    const match = uri.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
+    const ext = (match?.[1] || 'jpg').toLowerCase();
+
+    const contentType =
+      ext === 'jpg' || ext === 'jpeg'
+        ? 'image/jpeg'
+        : ext === 'png'
+        ? 'image/png'
+        : ext === 'heic'
+        ? 'image/heic'
+        : 'application/octet-stream';
+
+    const fileName = `${lane}-${Date.now()}.${ext}`;
+    const objectPath = `readings/${readingId}/${fileName}`;
+
+    // Modern Expo-friendly upload: fetch local uri -> blob
+    const res = await fetch(uri);
+    if (!res.ok) {
+      console.error('Failed to fetch local image uri:', uri, 'status:', res.status);
+      return null;
+    }
+
+    const blob = await res.blob();
+
+    const { error } = await supabase.storage.from(BUCKET).upload(objectPath, blob, {
+      contentType,
+      upsert: true,
+    });
+
+    if (error) {
+      console.error('Storage upload error:', error);
+      return null;
+    }
+
+    console.log('Uploaded image to:', objectPath);
+    return objectPath;
+  } catch (error) {
+    console.error('Exception uploading image:', error);
+    return null;
+  }
+}
+
+     
 
   /**
    * Step 3 helper: store uploaded photo paths onto the reading row.
