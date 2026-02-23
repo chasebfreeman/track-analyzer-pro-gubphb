@@ -22,7 +22,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { Track, LaneReading, TrackReading } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from "expo-file-system";
+
 
 
 const INPUT_ACCESSORY_VIEW_ID = 'uniqueKeyboardAccessoryID';
@@ -208,71 +208,96 @@ export default function RecordScreen() {
   };
 
   const handleSaveReading = async () => {
-    console.log('User tapped Save Reading button');
+  console.log('User tapped Save Reading button');
 
-    if (!selectedTrack) {
-      Alert.alert('Error', 'Please select a track');
+  if (!selectedTrack) {
+    Alert.alert('Error', 'Please select a track');
+    return;
+  }
+
+  setIsSaving(true);
+
+  try {
+    const ms = Date.now();
+
+    const timeZone = getDeviceTimeZone();
+    const trackDate = trackDateString(ms, timeZone);
+    const time12Hour = trackTimeString(ms, timeZone);
+
+    const y = Number(trackDate.slice(0, 4));
+    const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
+
+    const reading: Omit<TrackReading, 'id'> = {
+      trackId: selectedTrack.id,
+      date: trackDate,
+      time: time12Hour,
+      timestamp: ms,
+      year,
+      session: session || undefined,
+      pair: pair || undefined,
+      leftLane,
+      rightLane,
+      timeZone,
+      trackDate,
+    };
+
+    console.log('Saving new reading:', reading);
+
+    // 1) create reading row first
+    const savedReading = await SupabaseStorageService.createReading(reading);
+
+    if (!savedReading) {
+      Alert.alert('Error', 'Failed to save reading');
       return;
     }
 
-    setIsSaving(true);
+    console.log('Saved reading id:', savedReading.id);
+    console.log('Left imageUri:', leftLane.imageUri);
+    console.log('Right imageUri:', rightLane.imageUri);
 
-    try {
-      const ms = Date.now();
+    // 2) upload photos (if any)
+    const leftPath = leftLane.imageUri
+      ? await SupabaseStorageService.uploadImage(leftLane.imageUri, savedReading.id, 'left')
+      : null;
 
-      const timeZone = getDeviceTimeZone();
-      const trackDate = trackDateString(ms, timeZone);
-      const time12Hour = trackTimeString(ms, timeZone);
+    const rightPath = rightLane.imageUri
+      ? await SupabaseStorageService.uploadImage(rightLane.imageUri, savedReading.id, 'right')
+      : null;
 
-      const y = Number(trackDate.slice(0, 4));
-      const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
+    console.log('Uploaded paths:', { leftPath, rightPath });
 
-      const reading: Omit<TrackReading, 'id'> = {
-        trackId: selectedTrack.id,
-        date: trackDate,
-        time: time12Hour,
-        timestamp: ms,
-        year,
-        session: session || undefined,
-        pair: pair || undefined,
-        leftLane,
-        rightLane,
-        timeZone,
-        trackDate,
-      };
+    // 3) store paths on the reading row
+    if (leftPath || rightPath) {
+      const ok = await SupabaseStorageService.updateReadingPhotoPaths({
+        readingId: savedReading.id,
+        leftPhotoPath: leftPath ?? undefined,
+        rightPhotoPath: rightPath ?? undefined,
+      });
 
-      console.log('Saving new reading:', reading);
-
-      const savedReading = await SupabaseStorageService.createReading(reading);
-
-if (savedReading) {
-  console.log("Saved reading id:", savedReading.id);
-  console.log("Left imageUri:", leftLane.imageUri);
-  console.log("Right imageUri:", rightLane.imageUri);
-
-  console.log('Reading saved successfully');
-  Alert.alert('Success', 'Reading saved successfully', [
-    {
-      text: 'OK',
-      onPress: () => {
-        setLeftLane(getEmptyLaneReading());
-        setRightLane(getEmptyLaneReading());
-        setSession('');
-        setPair('');
-        Keyboard.dismiss();
-      },
-    },
-  ]);
-} else {
-  Alert.alert('Error', 'Failed to save reading');
-}
-    } catch (e) {
-      console.error('Save reading exception:', e);
-      Alert.alert('Error', 'Failed to save reading');
-    } finally {
-      setIsSaving(false);
+      console.log('updateReadingPhotoPaths ok:', ok);
     }
-  };
+
+    // 4) success UI + reset form
+    console.log('Reading saved successfully');
+    Alert.alert('Success', 'Reading saved successfully', [
+      {
+        text: 'OK',
+        onPress: () => {
+          setLeftLane(getEmptyLaneReading());
+          setRightLane(getEmptyLaneReading());
+          setSession('');
+          setPair('');
+          Keyboard.dismiss();
+        },
+      },
+    ]);
+  } catch (e) {
+    console.error('Save reading exception:', e);
+    Alert.alert('Error', 'Failed to save reading');
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const handleCancel = () => {
     console.log('User tapped Cancel button');

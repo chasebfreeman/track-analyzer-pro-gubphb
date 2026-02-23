@@ -18,19 +18,17 @@
       "backgroundColor": "#000000"
     },
     "ios": {
-  "supportsTablet": true,
-  "isTabletOnly": false,
-  "bundleIdentifier": "com.cfreeman4798.trackanalyzerpro",
-  "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
-  "infoPlist": {
-    "ITSAppUsesNonExemptEncryption": false,
-    "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload track lane photos.",
-    "NSCameraUsageDescription": "This app needs access to your camera to take photos of track lanes."
-  },
-  "buildNumber": "30"
-},
-
-
+      "supportsTablet": true,
+      "isTabletOnly": false,
+      "bundleIdentifier": "com.cfreeman4798.trackanalyzerpro",
+      "icon": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload track lane photos.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos of track lanes."
+      },
+      "buildNumber": "30"
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/5e70b68d-599b-4288-ba74-b6cfc68a07b0.png",
@@ -41,6 +39,10 @@
       "package": "com.trackanalyzerpro.app",
       "versionCode": 30,
       "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.CAMERA",
@@ -80,7 +82,8 @@
       "policy": "appVersion"
     },
     "updates": {
-      "enabled": false
+      "enabled": false,
+      "url": "https://u.expo.dev/053aacf8-9bb9-41d9-af12-a10076022eba"
     },
     "owner": "cfreeman4798"
   }

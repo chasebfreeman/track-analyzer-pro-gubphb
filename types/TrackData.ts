@@ -29,6 +29,10 @@ export interface TrackReading {
   leftLane: LaneReading;
   rightLane: LaneReading;
 
+// ✅ photo paths stored in DB (private storage object paths)
+  left_photo_path?: string | null;
+  right_photo_path?: string | null;
+
   // ✅ NEW (track-local forever)
   timeZone?: string;
   trackDate?: string;
