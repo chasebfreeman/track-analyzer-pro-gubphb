@@ -88,104 +88,48 @@ export default function SettingsScreen() {
     );
   };
 
-  const performAccountDeletion = async () => {
-    console.log('User confirmed account deletion - starting deletion process');
-    setIsDeleting(true);
+ const performAccountDeletion = async () => {
+  console.log('User confirmed account deletion - starting deletion process');
+  setIsDeleting(true);
 
-    try {
-      if (!user?.id) {
-        console.error('No user ID found');
-        Alert.alert('Error', 'Unable to delete account. Please try logging out and back in.');
-        setIsDeleting(false);
-        return;
-      }
-
-      console.log('Deleting user data for user ID:', user.id);
-
-      // Delete all readings associated with user
-      console.log('Deleting readings...');
-      const { error: readingsError } = await supabase
-        .from('readings')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (readingsError) {
-        console.error('Error deleting readings:', readingsError);
-        throw new Error('Failed to delete readings');
-      }
-
-      // Delete all tracks associated with user
-      console.log('Deleting tracks...');
-      const { error: tracksError } = await supabase
-        .from('tracks')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (tracksError) {
-        console.error('Error deleting tracks:', tracksError);
-        throw new Error('Failed to delete tracks');
-      }
-
-      // Delete team member entry
-      console.log('Deleting team member entry...');
-      const { error: teamError } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (teamError) {
-        console.error('Error deleting team member:', teamError);
-        // Don't throw - this might not exist
-      }
-
-      // Delete user profiles
-      console.log('Deleting user profiles...');
-      const { error: profilesError } = await supabase
-        .from('user_profiles')
-        .delete()
-        .eq('id', user.id);
-
-      if (profilesError) {
-        console.error('Error deleting user profiles:', profilesError);
-        // Don't throw - this might not exist
-      }
-
-      // Delete the auth user account (this must be done last)
-      console.log('Deleting auth account...');
-      const { data, error } = await supabase.functions.invoke("delete-account");
-if (error) {
-  console.error("delete-account invoke error:", error);
-  throw new Error("Failed to delete account");
-}
-
-      
-
-      console.log('Account deletion completed successfully');
-      
-      // Sign out and redirect
-      await signOut();
-      
-      Alert.alert(
-        'Account Deleted',
-        'Your account and all associated data have been permanently deleted.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/auth/login'),
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Error during account deletion:', error);
-      Alert.alert(
-        'Error',
-        'An error occurred while deleting your account. Please try again or contact support.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setIsDeleting(false);
+  try {
+    if (!user?.id) {
+      Alert.alert('Error', 'Unable to delete account. Please try logging out and back in.');
+      return;
     }
-  };
+
+    console.log('Invoking delete-account edge function...');
+
+    const { data, error } = await supabase.functions.invoke('delete-account');
+
+    if (error) {
+      console.error('delete-account invoke error:', error);
+      Alert.alert('Error', error.message || 'Failed to delete account');
+      return;
+    }
+
+    console.log('delete-account success:', data);
+
+    // Sign out locally and redirect
+    await signOut();
+
+    Alert.alert(
+      'Account Deleted',
+      'Your account and all associated data have been permanently deleted.',
+      [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/auth/login'),
+        },
+      ]
+    );
+  } catch (e: any) {
+    console.error('Error during account deletion:', e);
+    Alert.alert('Error', e?.message || 'An error occurred while deleting your account.');
+  } finally {
+    setIsDeleting(false);
+  }
+}; 
 
   const styles = getStyles(colors);
 
