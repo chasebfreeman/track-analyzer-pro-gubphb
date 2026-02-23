@@ -16,6 +16,7 @@ import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
+import * as Application from 'expo-application';
 
 export default function SettingsScreen() {
   const colors = useThemeColors();
@@ -151,25 +152,13 @@ export default function SettingsScreen() {
 
       // Delete the auth user account (this must be done last)
       console.log('Deleting auth account...');
-      const { error: deleteUserError } = await supabase.auth.admin.deleteUser(user.id);
+      const { data, error } = await supabase.functions.invoke("delete-account");
+if (error) {
+  console.error("delete-account invoke error:", error);
+  throw new Error("Failed to delete account");
+}
 
-      if (deleteUserError) {
-        console.error('Error deleting auth user:', deleteUserError);
-        // Try alternative method - sign out and let user know
-        console.log('Attempting to sign out user instead');
-        await signOut();
-        Alert.alert(
-          'Account Data Deleted',
-          'Your data has been deleted. Please contact support to complete account deletion.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/auth/login'),
-            },
-          ]
-        );
-        return;
-      }
+      
 
       console.log('Account deletion completed successfully');
       
@@ -229,62 +218,61 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Legal</Text>
-            
-            <View style={styles.card}>
-              <TouchableOpacity style={styles.infoRow} onPress={handlePrivacyPolicy}>
-                <IconSymbol
-                  ios_icon_name="doc.text"
-                  android_material_icon_name="description"
-                  size={24}
-                  color={colors.primary}
-                />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoValue}>Privacy Policy</Text>
-                </View>
-                <IconSymbol
-                  ios_icon_name="chevron.right"
-                  android_material_icon_name="arrow-forward"
-                  size={20}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
+  <Text style={styles.sectionTitle}>About</Text>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About</Text>
-            
-            <View style={styles.card}>
-              <View style={styles.infoRow}>
-                <IconSymbol
-                  ios_icon_name="flag.checkered"
-                  android_material_icon_name="sports-score"
-                  size={24}
-                  color={colors.primary}
-                />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>App Name</Text>
-                  <Text style={styles.infoValue}>Track Specialist</Text>
-                </View>
-              </View>
+  <View style={styles.card}>
+    {/* App Name */}
+    <View style={styles.infoRow}>
+      <IconSymbol
+        ios_icon_name="flag.checkered"
+        android_material_icon_name="sports-score"
+        size={24}
+        color={colors.primary}
+      />
+      <View style={styles.infoContent}>
+        <Text style={styles.infoLabel}>App Name</Text>
+        <Text style={styles.infoValue}>Track Specialist</Text>
+      </View>
+    </View>
 
-              <View style={styles.divider} />
+    <View style={styles.divider} />
 
-              <View style={styles.infoRow}>
-                <IconSymbol
-                  ios_icon_name="info.circle"
-                  android_material_icon_name="info"
-                  size={24}
-                  color={colors.primary}
-                />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Version</Text>
-                  <Text style={styles.infoValue}>1.1</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+    {/* Version */}
+    <View style={styles.infoRow}>
+      <IconSymbol
+        ios_icon_name="info.circle"
+        android_material_icon_name="info"
+        size={24}
+        color={colors.primary}
+      />
+      <View style={styles.infoContent}>
+        <Text style={styles.infoLabel}>Version</Text>
+        <Text style={styles.infoValue}>
+          {Application.nativeApplicationVersion ?? '—'}
+          {Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ''}
+        </Text>
+      </View>
+    </View>
+
+    <View style={styles.divider} />
+
+    {/* Runtime policy (simple indicator) */}
+    <View style={styles.infoRow}>
+      <IconSymbol
+        ios_icon_name="gearshape"
+        android_material_icon_name="settings"
+        size={24}
+        color={colors.primary}
+      />
+      <View style={styles.infoContent}>
+        <Text style={styles.infoLabel}>Runtime</Text>
+        <Text style={styles.infoValue}>
+          {Application.nativeApplicationVersion ? 'appVersion policy' : '—'}
+        </Text>
+      </View>
+    </View>
+  </View>
+</View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Multi-User System</Text>
