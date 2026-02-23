@@ -2,7 +2,7 @@
 
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Track, TrackReading, LaneReading } from '@/types/TrackData';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { decode as base64Decode } from 'base-64';
 
 export class SupabaseStorageService {
@@ -364,8 +364,8 @@ export class SupabaseStorageService {
 
       // Read file as base64
       const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+  encoding: "base64" as any,
+});
 
       // Convert base64 -> Uint8Array
       const binaryString = base64Decode(base64);
