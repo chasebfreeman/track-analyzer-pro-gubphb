@@ -15,9 +15,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
 
   // ✅ EAS Update config
   updates: {
-    ...config.updates,
-    fallbackToCacheTimeout: 0,
-  },
+  ...config.updates,
+  enabled: true,
+  fallbackToCacheTimeout: 0,
+},
 
   // ✅ Ensures update compatibility with the installed binary
   runtimeVersion: {
