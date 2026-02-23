@@ -1,7 +1,7 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
-  ...config, // <-- this is the merge
+  ...config,
 
   name: "Track Analyzer Pro",
   slug: "track-analyzer-pro",
@@ -11,6 +11,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: "com.cfreeman4798.trackanalyzerpro",
     supportsTablet: true,
     isTabletOnly: false,
+  },
+
+  // ✅ EAS Update config
+  updates: {
+    ...config.updates,
+    fallbackToCacheTimeout: 0,
+  },
+
+  // ✅ Ensures update compatibility with the installed binary
+  runtimeVersion: {
+    policy: "appVersion",
   },
 
   extra: {
