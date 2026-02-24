@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -7,29 +6,29 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Platform,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { TrackReading, Track } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 
 export default function ReadingDetailScreen() {
-  const [leftImageUrl, setLeftImageUrl] = useState<string | null>(null);
-  const [rightImageUrl, setRightImageUrl] = useState<string | null>(null);
   const colors = useThemeColors();
   const params = useLocalSearchParams();
   const router = useRouter();
-  
+
   const [reading, setReading] = useState<TrackReading | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
 
+  const [leftImageUrl, setLeftImageUrl] = useState<string | null>(null);
+  const [rightImageUrl, setRightImageUrl] = useState<string | null>(null);
+
   const loadData = useCallback(async () => {
     console.log('Loading reading detail:', params.readingId);
-    
+
     if (!params.readingId || !params.trackId) {
       console.log('Missing readingId or trackId');
       return;
@@ -38,46 +37,73 @@ export default function ReadingDetailScreen() {
     // Load track
     const tracks = await SupabaseStorageService.getAllTracks();
     const foundTrack = tracks.find((t) => t.id === params.trackId);
-    if (foundTrack) {
-      setTrack(foundTrack);
-    }
+    if (foundTrack) setTrack(foundTrack);
 
-    // Load readings for this track
-    const readings = await SupabaseStorageService.getReadingsForTrack(
-      params.trackId as string
-    );
+    // Load readings for this track and find the one
+    const readings = await SupabaseStorageService.getReadingsForTrack(params.trackId as string);
     const foundReading = readings.find((r) => r.id === params.readingId);
+
     if (foundReading) {
       setReading(foundReading);
       console.log('Reading loaded:', foundReading.id);
+    } else {
+      console.log('Reading not found in list for track:', params.trackId);
+      setReading(null);
     }
   }, [params.readingId, params.trackId]);
 
+  // Initial load
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh when coming back from Edit
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  // Load signed image URLs whenever reading changes
   useEffect(() => {
-  async function loadSignedUrls() {
+    async function loadSignedUrls() {
+      if (!reading) {
+        setLeftImageUrl(null);
+        setRightImageUrl(null);
+        return;
+      }
+
+      const leftPath =
+        (reading as any).left_photo_path ?? (reading as any).leftPhotoPath ?? null;
+      const rightPath =
+        (reading as any).right_photo_path ?? (reading as any).rightPhotoPath ?? null;
+
+      const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
+        leftPhotoPath: leftPath,
+        rightPhotoPath: rightPath,
+        expiresInSeconds: 60 * 60 * 24, // 24 hours for testing
+      });
+
+      setLeftImageUrl(leftUrl);
+      setRightImageUrl(rightUrl);
+
+      console.log('Signed URLs:', { leftUrl: !!leftUrl, rightUrl: !!rightUrl });
+    }
+
+    loadSignedUrls();
+  }, [reading]);
+
+  const handleEdit = () => {
     if (!reading) return;
 
-    // These field names MUST match what you save in Supabase:
-    const leftPath = (reading as any).left_photo_path ?? (reading as any).leftPhotoPath ?? null;
-    const rightPath = (reading as any).right_photo_path ?? (reading as any).rightPhotoPath ?? null;
-
-    const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
-      leftPhotoPath: leftPath,
-      rightPhotoPath: rightPath,
-      expiresInSeconds: 60 * 60 * 24, // 24 hours for testing
+    router.push({
+      pathname: '/(tabs)/record',
+      params: {
+        editReadingId: reading.id,
+        trackId: reading.trackId,
+      },
     });
-
-    setLeftImageUrl(leftUrl);
-    setRightImageUrl(rightUrl);
-
-    console.log("Signed URLs:", { leftUrl: !!leftUrl, rightUrl: !!rightUrl });
-  }
-
-  loadSignedUrls();
-}, [reading]);
+  };
 
   const handleDelete = () => {
     console.log('User tapped Delete button');
@@ -86,11 +112,7 @@ export default function ReadingDetailScreen() {
       'Are you sure you want to delete this reading? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: deleteReading,
-        },
+        { text: 'Delete', style: 'destructive', onPress: deleteReading },
       ]
     );
   };
@@ -104,136 +126,129 @@ export default function ReadingDetailScreen() {
     if (success) {
       console.log('Reading deleted successfully');
       Alert.alert('Success', 'Reading deleted successfully', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
+        { text: 'OK', onPress: () => router.back() },
       ]);
     } else {
       Alert.alert('Error', 'Failed to delete reading');
     }
   };
 
+  const formatTimeInTimeZone = (ms: number, timeZone: string) => {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(new Date(ms));
+    } catch {
+      const d = new Date(ms);
+      let hours = d.getHours();
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${hours}:${minutes} ${ampm}`;
+    }
+  };
+
+  const getDisplayDate = (r: TrackReading) => r.trackDate || r.date;
+
+  const getDisplayTime = (r: TrackReading) => {
+    if (r.timeZone && r.timestamp) {
+      return formatTimeInTimeZone(r.timestamp, r.timeZone);
+    }
+    return r.time;
+  };
+
   const renderLaneData = (lane: any, title: string) => {
     return (
       <View style={styles.laneSection}>
         <Text style={styles.laneTitle}>{title}</Text>
-        
+
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Track Temp</Text>
             <Text style={styles.dataValue}>{lane.trackTemp || 'N/A'}</Text>
           </View>
-          
+
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>UV Index</Text>
             <Text style={styles.dataValue}>{lane.uvIndex || 'N/A'}</Text>
           </View>
         </View>
-        
+
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Keg SL</Text>
             <Text style={styles.dataValue}>{lane.kegSL || 'N/A'}</Text>
           </View>
-          
+
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Keg Out</Text>
             <Text style={styles.dataValue}>{lane.kegOut || 'N/A'}</Text>
           </View>
         </View>
-        
+
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Grippo SL</Text>
             <Text style={styles.dataValue}>{lane.grippoSL || 'N/A'}</Text>
           </View>
-          
+
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Grippo Out</Text>
             <Text style={styles.dataValue}>{lane.grippoOut || 'N/A'}</Text>
           </View>
         </View>
-        
+
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Shine</Text>
             <Text style={styles.dataValue}>{lane.shine || 'N/A'}</Text>
           </View>
-          
-          <View style={styles.dataItem}>
-            {/* Empty space for alignment */}
-          </View>
+
+          <View style={styles.dataItem} />
         </View>
 
-        {lane.notes && (
+        {lane.notes ? (
           <View style={styles.notesSection}>
             <Text style={styles.dataLabel}>Notes</Text>
             <Text style={styles.notesText}>{lane.notes}</Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Left lane photo */}
-{title === "Left Lane" && leftImageUrl && (
-  <TouchableOpacity
-    activeOpacity={0.9}
-    onPress={() =>
-      router.push({
-        pathname: "/(modals)/photo-viewer",
-        params: { url: leftImageUrl },
-      })
-    }
-  >
-    <Image source={{ uri: leftImageUrl }} style={styles.laneImage} />
-  </TouchableOpacity>
-)}
+        {/* Photos */}
+        {title === 'Left Lane' && leftImageUrl ? (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() =>
+              router.push({
+                pathname: '/(modals)/photo-viewer',
+                params: { url: leftImageUrl },
+              })
+            }
+          >
+            <Image source={{ uri: leftImageUrl }} style={styles.laneImage} />
+          </TouchableOpacity>
+        ) : null}
 
-{/* Right lane photo */}
-{title === "Right Lane" && rightImageUrl && (
-  <TouchableOpacity
-    activeOpacity={0.9}
-    onPress={() =>
-      router.push({
-        pathname: "/(modals)/photo-viewer",
-        params: { url: rightImageUrl },
-      })
-    }
-  >
-    <Image source={{ uri: rightImageUrl }} style={styles.laneImage} />
-  </TouchableOpacity>
-)}
-
+        {title === 'Right Lane' && rightImageUrl ? (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() =>
+              router.push({
+                pathname: '/(modals)/photo-viewer',
+                params: { url: rightImageUrl },
+              })
+            }
+          >
+            <Image source={{ uri: rightImageUrl }} style={styles.laneImage} />
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   };
-const formatTimeInTimeZone = (ms: number, timeZone: string) => {
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).format(new Date(ms));
-  } catch {
-    // fallback to device local time
-    const d = new Date(ms);
-    let hours = d.getHours();
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${hours}:${minutes} ${ampm}`;
-  }
-};
-
-const getDisplayDate = (r: TrackReading) => r.trackDate || r.date;
-
-const getDisplayTime = (r: TrackReading) => {
-  if (r.timeZone && r.timestamp) {
-    return formatTimeInTimeZone(r.timestamp, r.timeZone);
-  }
-  return r.time;
-};
 
   const styles = getStyles(colors);
 
@@ -266,9 +281,20 @@ const getDisplayTime = (r: TrackReading) => {
             color={colors.text}
           />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>Reading Details</Text>
+
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
+          <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
+            <IconSymbol
+              ios_icon_name="pencil"
+              android_material_icon_name="edit"
+              size={24}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleDelete} style={styles.iconButton}>
             <IconSymbol
               ios_icon_name="trash"
               android_material_icon_name="delete"
@@ -290,7 +316,7 @@ const getDisplayTime = (r: TrackReading) => {
             />
             <Text style={styles.infoText}>{track.name}</Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <IconSymbol
               ios_icon_name="calendar"
@@ -300,7 +326,7 @@ const getDisplayTime = (r: TrackReading) => {
             />
             <Text style={styles.infoText}>{getDisplayDate(reading)}</Text>
           </View>
-          
+
           <View style={styles.infoRow}>
             <IconSymbol
               ios_icon_name="clock"
@@ -311,7 +337,7 @@ const getDisplayTime = (r: TrackReading) => {
             <Text style={styles.infoText}>{getDisplayTime(reading)}</Text>
           </View>
 
-          {reading.session && (
+          {reading.session ? (
             <View style={styles.infoRow}>
               <IconSymbol
                 ios_icon_name="list.bullet"
@@ -321,9 +347,9 @@ const getDisplayTime = (r: TrackReading) => {
               />
               <Text style={styles.infoText}>Session: {reading.session}</Text>
             </View>
-          )}
+          ) : null}
 
-          {reading.pair && (
+          {reading.pair ? (
             <View style={styles.infoRow}>
               <IconSymbol
                 ios_icon_name="person.2"
@@ -333,7 +359,7 @@ const getDisplayTime = (r: TrackReading) => {
               />
               <Text style={styles.infoText}>Pair: {reading.pair}</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         {renderLaneData(reading.leftLane, 'Left Lane')}
@@ -371,7 +397,7 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       flexDirection: 'row',
       alignItems: 'center',
     },
-    deleteButton: {
+    iconButton: {
       width: 40,
       height: 40,
       justifyContent: 'center',

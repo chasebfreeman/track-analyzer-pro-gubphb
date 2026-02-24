@@ -30,6 +30,9 @@ const INPUT_ACCESSORY_VIEW_ID = 'uniqueKeyboardAccessoryID';
 export default function RecordScreen() {
   const colors = useThemeColors();
   const params = useLocalSearchParams();
+  const editReadingId =
+  typeof params.editReadingId === 'string' ? params.editReadingId : null;
+  const isEditMode = !!editReadingId;
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -137,6 +140,7 @@ export default function RecordScreen() {
   useEffect(() => {
     loadTracks();
   }, [loadTracks]);
+  
 
   const setLaneImage = (lane: 'left' | 'right', uri: string) => {
     if (lane === 'left') setLeftLane({ ...leftLane, imageUri: uri });
