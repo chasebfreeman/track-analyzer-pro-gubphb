@@ -8,6 +8,7 @@ export interface LaneReading {
   shine: string;
   notes: string;
   imageUri?: string;
+  
 }
 
 export interface TrackReading {
@@ -36,6 +37,13 @@ export interface TrackReading {
   // ✅ NEW (track-local forever)
   timeZone?: string;
   trackDate?: string;
+    // ✅ Weather snapshot (applies to whole reading)
+  temp_f?: number;
+  humidity_pct?: number;
+  baro_inhg?: number;
+  adr?: number;
+  correction?: number;
+  weather_ts?: string;
 }
 
 

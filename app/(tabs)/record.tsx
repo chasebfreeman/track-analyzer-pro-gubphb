@@ -22,7 +22,37 @@ import { IconSymbol } from '@/components/IconSymbol';
 import { Track, LaneReading, TrackReading } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import * as ImagePicker from 'expo-image-picker';
+type WeatherLive = {
+  inputs: {
+    tempF: number;
+    humidityPct: number;
+    absPressureInHg: number;
+  };
+  display: {
+    ts: string;
+    adr: number;
+    correction: number;
+  };
+};
 
+async function fetchEliteTrackWeatherSnapshot() {
+  const res = await fetch("https://elitetrackweather.com/api/live", {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!res.ok) throw new Error(`Weather fetch failed: ${res.status}`);
+
+  const json = (await res.json()) as WeatherLive;
+
+  return {
+    weather_ts: json.display.ts,
+    temp_f: json.inputs.tempF,
+    humidity_pct: json.inputs.humidityPct,
+    baro_inhg: json.inputs.absPressureInHg,
+    adr: json.display.adr,
+    correction: json.display.correction,
+  };
+}
 
 
 const INPUT_ACCESSORY_VIEW_ID = 'uniqueKeyboardAccessoryID';
@@ -231,6 +261,22 @@ export default function RecordScreen() {
     const y = Number(trackDate.slice(0, 4));
     const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
 
+    // ✅ Fetch weather snapshot (non-fatal: if it fails, we still save the reading)
+    let weather: {
+      weather_ts: string;
+      temp_f: number;
+      humidity_pct: number;
+      baro_inhg: number;
+      adr: number;
+      correction: number;
+    } | null = null;
+
+    try {
+      weather = await fetchEliteTrackWeatherSnapshot();
+    } catch (e) {
+      console.warn('Weather snapshot failed (saving reading without weather):', e);
+    }
+
     const reading: Omit<TrackReading, 'id'> = {
       trackId: selectedTrack.id,
       date: trackDate,
@@ -243,9 +289,23 @@ export default function RecordScreen() {
       rightLane,
       timeZone,
       trackDate,
+
+      // ✅ Attach weather fields if we got them
+      ...(weather
+        ? {
+            temp_f: weather.temp_f,
+            humidity_pct: weather.humidity_pct,
+            baro_inhg: weather.baro_inhg,
+            adr: weather.adr,
+            correction: weather.correction,
+            weather_ts: weather.weather_ts,
+          }
+        : {}),
     };
 
     console.log('Saving new reading:', reading);
+
+    // (keep your existing insert code below this)
 
     // 1) create reading row first
     const savedReading = await SupabaseStorageService.createReading(reading);

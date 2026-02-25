@@ -149,7 +149,7 @@ export class SupabaseStorageService {
       const dbYear = this.safeNumber(reading.year);
       const derivedYear = dbYear ?? this.getYearFromTrackDate(trackDate, ts);
 
-      return {
+            return {
         id: reading.id,
         trackId: reading.track_id,
         left_photo_path: reading.left_photo_path ?? null,
@@ -165,6 +165,14 @@ export class SupabaseStorageService {
         rightLane: reading.right_lane as LaneReading,
         timeZone,
         trackDate,
+
+        // ✅ Weather snapshot
+        temp_f: this.safeNumber(reading.temp_f) ?? undefined,
+        humidity_pct: this.safeNumber(reading.humidity_pct) ?? undefined,
+        baro_inhg: this.safeNumber(reading.baro_inhg) ?? undefined,
+        adr: this.safeNumber(reading.adr) ?? undefined,
+        correction: this.safeNumber(reading.correction) ?? undefined,
+        weather_ts: reading.weather_ts ?? undefined,
       };
     });
   }
@@ -195,56 +203,72 @@ export class SupabaseStorageService {
     const derivedYear = dbYear ?? this.getYearFromTrackDate(trackDate, ts);
 
     return {
-      id: data.id,
-      trackId: data.track_id,
-      left_photo_path: data.left_photo_path ?? null,
-      right_photo_path: data.right_photo_path ?? null,
-      date: data.date ?? trackDate ?? '',
-      time: data.time ?? '',
-      timestamp: ts ?? 0,
-      year: derivedYear ?? 0,
-      session: data.session ?? undefined,
-      pair: data.pair ?? undefined,
-      classCurrentlyRunning: data.class_currently_running ?? undefined,
-      leftLane: data.left_lane as LaneReading,
-      rightLane: data.right_lane as LaneReading,
-      timeZone,
-      trackDate,
-    };
+  id: data.id,
+  trackId: data.track_id,
+  left_photo_path: data.left_photo_path ?? null,
+  right_photo_path: data.right_photo_path ?? null,
+  date: data.date ?? trackDate ?? '',
+  time: data.time ?? '',
+  timestamp: ts ?? 0,
+  year: derivedYear ?? 0,
+  session: data.session ?? undefined,
+  pair: data.pair ?? undefined,
+  classCurrentlyRunning: data.class_currently_running ?? undefined,
+  leftLane: data.left_lane as LaneReading,
+  rightLane: data.right_lane as LaneReading,
+  timeZone,
+  trackDate,
+
+  // ✅ Weather snapshot
+  temp_f: this.safeNumber(data.temp_f) ?? undefined,
+  humidity_pct: this.safeNumber(data.humidity_pct) ?? undefined,
+  baro_inhg: this.safeNumber(data.baro_inhg) ?? undefined,
+  adr: this.safeNumber(data.adr) ?? undefined,
+  correction: this.safeNumber(data.correction) ?? undefined,
+  weather_ts: data.weather_ts ?? undefined,
+};
   }
 
   static async createReading(reading: Omit<TrackReading, 'id'>): Promise<TrackReading | null> {
-    if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseConfigured()) return null;
 
-    const { data: userData } = await supabase.auth.getUser();
+  const { data: userData } = await supabase.auth.getUser();
 
-    const { data, error } = await supabase
-      .from('readings')
-      .insert({
-        track_id: reading.trackId,
-        date: reading.date,
-        time: reading.time,
-        timestamp: Math.trunc(reading.timestamp),
-        year: reading.year,
-        session: reading.session ?? null,
-        pair: reading.pair ?? null,
-        class_currently_running: reading.classCurrentlyRunning ?? null,
-        left_lane: reading.leftLane,
-        right_lane: reading.rightLane,
-        user_id: userData.user?.id,
-        time_zone: reading.timeZone ?? null,
-        track_date: reading.trackDate ?? null,
-      })
-      .select()
-      .single();
+  const { data, error } = await supabase
+    .from('readings')
+    .insert({
+      track_id: reading.trackId,
+      date: reading.date,
+      time: reading.time,
+      timestamp: Math.trunc(reading.timestamp),
+      year: reading.year,
+      session: reading.session ?? null,
+      pair: reading.pair ?? null,
+      class_currently_running: reading.classCurrentlyRunning ?? null,
+      left_lane: reading.leftLane,
+      right_lane: reading.rightLane,
+      user_id: userData.user?.id,
+      time_zone: reading.timeZone ?? null,
+      track_date: reading.trackDate ?? null,
 
-    if (error || !data) {
-      console.error('Error creating reading:', error);
-      return null;
-    }
+      // ✅ NEW: weather snapshot fields
+      temp_f: reading.temp_f ?? null,
+      humidity_pct: reading.humidity_pct ?? null,
+      baro_inhg: reading.baro_inhg ?? null,
+      adr: reading.adr ?? null,
+      correction: reading.correction ?? null,
+      weather_ts: reading.weather_ts ?? null,
+    })
+    .select()
+    .single();
 
-    return this.getReadingById(data.id);
+  if (error || !data) {
+    console.error('Error creating reading:', error);
+    return null;
   }
+
+  return this.getReadingById(data.id);
+}
 
   static async updateReading(readingId: string, updates: Partial<TrackReading>): Promise<boolean> {
     if (!isSupabaseConfigured()) return false;
@@ -262,7 +286,12 @@ export class SupabaseStorageService {
     if (updates.rightLane !== undefined) updateData.right_lane = updates.rightLane;
     if (updates.timeZone !== undefined) updateData.time_zone = updates.timeZone;
     if (updates.trackDate !== undefined) updateData.track_date = updates.trackDate;
-
+    if (updates.temp_f !== undefined) updateData.temp_f = updates.temp_f;
+    if (updates.humidity_pct !== undefined) updateData.humidity_pct = updates.humidity_pct;
+    if (updates.baro_inhg !== undefined) updateData.baro_inhg = updates.baro_inhg;
+    if (updates.adr !== undefined) updateData.adr = updates.adr;
+    if (updates.correction !== undefined) updateData.correction = updates.correction;
+    if (updates.weather_ts !== undefined) updateData.weather_ts = updates.weather_ts;
     const { error } = await supabase.from('readings').update(updateData).eq('id', readingId);
 
     if (error) {
