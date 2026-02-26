@@ -14,10 +14,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
 
   // ✅ EAS Update config
-  updates: {
-  ...config.updates,
-  enabled: true,
-  fallbackToCacheTimeout: 0,
+  // 🔒 Disable OTA updates for TestFlight / production stability
+updates: {
+  enabled: false,
 },
 
   // ✅ Ensures update compatibility with the installed binary
