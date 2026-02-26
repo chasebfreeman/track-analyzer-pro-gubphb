@@ -162,6 +162,21 @@ export default function ReadingDetailScreen() {
     }
   };
   const fmtNum = (n: any, digits = 1) => {
+  const fmtTs = (ts?: string) => {
+  if (!ts) return "N/A";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts; // fallback if weird format
+  // Example: 02/26/2026, 11:13:54 AM
+  return d.toLocaleString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+};
   const v = typeof n === "number" ? n : Number(n);
   return Number.isFinite(v) ? v.toFixed(digits) : "N/A";
 };
@@ -208,11 +223,13 @@ const renderWeatherSnapshot = (r: TrackReading) => {
       <View style={styles.dataRow}>
         <View style={styles.dataItem}>
           <Text style={styles.dataLabel}>ADR</Text>
-          <Text style={styles.dataValue}>{fmtNum(r.adr, 0)}</Text>
+          <Text style={styles.dataValue}>{fmtNum(r.adr, 2)}</Text>
         </View>
 
         <View style={styles.dataItem}>
-          <Text style={styles.dataLabel}>Weather TS</Text>
+          <Text style={styles.dataValue} numberOfLines={1}>
+            {fmtTs(r.weather_ts)}
+          </Text>
           <Text style={styles.dataValue}>{r.weather_ts || "N/A"}</Text>
         </View>
       </View>
