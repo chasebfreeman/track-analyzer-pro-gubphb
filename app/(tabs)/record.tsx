@@ -1,6 +1,6 @@
 // app/(tabs)/record.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
   InputAccessoryView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, Stack, useRouter } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Track, LaneReading, TrackReading } from '@/types/TrackData';
@@ -59,10 +59,16 @@ const INPUT_ACCESSORY_VIEW_ID = 'uniqueKeyboardAccessoryID';
 
 export default function RecordScreen() {
   const colors = useThemeColors();
-  const params = useLocalSearchParams();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ editReadingId?: string; trackId?: string }>();
+
   const editReadingId =
-  typeof params.editReadingId === 'string' ? params.editReadingId : null;
-  const isEditMode = !!editReadingId;
+    typeof params.editReadingId === 'string' && params.editReadingId.length > 0
+     ? params.editReadingId
+      : null;
+
+  const isEditing = useMemo(() => !!editReadingId, [editReadingId]);
+  const hasHydratedRef = useRef(false);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -171,6 +177,51 @@ export default function RecordScreen() {
     loadTracks();
   }, [loadTracks]);
   
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadExistingReading() {
+    if (!editReadingId) return;
+    if (hasHydratedRef.current) return;
+
+    try {
+      console.log("Loading existing reading for edit:", editReadingId);
+
+      // You need this method in SupabaseStorageService:
+      // getReadingById(readingId: string): Promise<TrackReading | null>
+      const existing = await SupabaseStorageService.getReadingById(editReadingId);
+
+      if (cancelled) return;
+
+      if (!existing) {
+        Alert.alert("Not found", "Could not load that reading to edit.");
+        return;
+      }
+
+      // ✅ Pre-fill the form fields
+      setSession(existing.session ?? "");
+      setPair(existing.pair ?? "");
+      setLeftLane(existing.leftLane ?? getEmptyLaneReading());
+      setRightLane(existing.rightLane ?? getEmptyLaneReading());
+
+      // ✅ Ensure the track is selected if it exists
+      const track = tracks.find((t) => t.id === existing.trackId) ?? null;
+      if (track) setSelectedTrack(track);
+
+      hasHydratedRef.current = true;
+      console.log("Hydrated record form for edit:", editReadingId);
+    } catch (e: any) {
+      console.error("Failed to load reading for edit:", e);
+      Alert.alert("Error", e?.message ?? "Failed to load reading for edit.");
+    }
+  }
+
+  loadExistingReading();
+
+  return () => {
+    cancelled = true;
+  };
+}, [editReadingId, tracks]);
 
   const setLaneImage = (lane: 'left' | 'right', uri: string) => {
     if (lane === 'left') setLeftLane({ ...leftLane, imageUri: uri });
@@ -252,109 +303,169 @@ export default function RecordScreen() {
   setIsSaving(true);
 
   try {
-    const ms = Date.now();
+// 🔒 If editing, fetch existing reading ONCE
+let existing: TrackReading | null = null;
 
-    const timeZone = getDeviceTimeZone();
-    const trackDate = trackDateString(ms, timeZone);
-    const time12Hour = trackTimeString(ms, timeZone);
+if (editReadingId) {
+  existing = await SupabaseStorageService.getReadingById(editReadingId);
 
-    const y = Number(trackDate.slice(0, 4));
-    const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
+  if (!existing) {
+    Alert.alert('Error', 'Could not load existing reading');
+    return;
+  }
+}
 
-    // ✅ Fetch weather snapshot (non-fatal: if it fails, we still save the reading)
-    let weather: {
-      weather_ts: string;
-      temp_f: number;
-      humidity_pct: number;
-      baro_inhg: number;
-      adr: number;
-      correction: number;
-    } | null = null;
+// 🕒 Default to "new reading" values
+let ms = Date.now();
+let timeZone = getDeviceTimeZone();
+let trackDate = trackDateString(ms, timeZone);
+let time12Hour = trackTimeString(ms, timeZone);
 
-    try {
-      weather = await fetchEliteTrackWeatherSnapshot();
-    } catch (e) {
-      console.warn('Weather snapshot failed (saving reading without weather):', e);
-    }
+let y = Number(trackDate.slice(0, 4));
+let year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
+
+// 🔒 If editing, preserve original identity fields
+if (existing) {
+  ms = existing.timestamp;
+  timeZone = existing.timeZone ?? timeZone;
+  trackDate = existing.trackDate ?? existing.date ?? trackDate;
+  time12Hour = existing.time ?? time12Hour;
+  year = existing.year ?? year;
+}
+
+// 🌤 Weather handling
+let weather: {
+  weather_ts?: string;
+  temp_f?: number;
+  humidity_pct?: number;
+  baro_inhg?: number;
+  adr?: number;
+  correction?: number;
+} | null = null;
+
+if (existing) {
+  // 🔒 Preserve original weather snapshot
+  weather = {
+    weather_ts: existing.weather_ts,
+    temp_f: existing.temp_f,
+    humidity_pct: existing.humidity_pct,
+    baro_inhg: existing.baro_inhg,
+    adr: existing.adr,
+    correction: existing.correction,
+  };
+} else {
+  // 🆕 New reading → fetch live weather
+  try {
+    weather = await fetchEliteTrackWeatherSnapshot();
+  } catch (e) {
+    console.warn('Weather snapshot failed (saving reading without weather):', e);
+  }
+}
 
     const reading: Omit<TrackReading, 'id'> = {
-      trackId: selectedTrack.id,
-      date: trackDate,
-      time: time12Hour,
-      timestamp: ms,
-      year,
-      session: session || undefined,
-      pair: pair || undefined,
-      leftLane,
-      rightLane,
-      timeZone,
-      trackDate,
-
-      // ✅ Attach weather fields if we got them
-      ...(weather
-        ? {
-            temp_f: weather.temp_f,
-            humidity_pct: weather.humidity_pct,
-            baro_inhg: weather.baro_inhg,
-            adr: weather.adr,
-            correction: weather.correction,
-            weather_ts: weather.weather_ts,
-          }
-        : {}),
-    };
+     trackId: selectedTrack.id,
+     date: trackDate,
+     time: time12Hour,
+     timestamp: ms,
+    year,
+    session: session || undefined,
+    pair: pair || undefined,
+    leftLane,
+    rightLane,
+    timeZone,
+    trackDate,
+  ...(weather ? {
+      temp_f: weather.temp_f,
+      humidity_pct: weather.humidity_pct,
+     baro_inhg: weather.baro_inhg,
+     adr: weather.adr,
+     correction: weather.correction,
+     weather_ts: weather.weather_ts,
+  } : {}),
+};
 
     console.log('Saving new reading:', reading);
 
     // (keep your existing insert code below this)
+// 1) create or update reading row first
+let savedReadingId: string | null = null;
 
-    // 1) create reading row first
-    const savedReading = await SupabaseStorageService.createReading(reading);
+if (editReadingId) {
+  console.log('Updating existing reading:', editReadingId);
 
-    if (!savedReading) {
-      Alert.alert('Error', 'Failed to save reading');
-      return;
-    }
+  const updated = await SupabaseStorageService.updateReading(editReadingId, reading);
 
-    console.log('Saved reading id:', savedReading.id);
-    console.log('Left imageUri:', leftLane.imageUri);
-    console.log('Right imageUri:', rightLane.imageUri);
+  if (!updated) {
+    Alert.alert('Error', 'Failed to update reading');
+    return;
+}
 
-    // 2) upload photos (if any)
-    const leftPath = leftLane.imageUri
-      ? await SupabaseStorageService.uploadImage(leftLane.imageUri, savedReading.id, 'left')
-      : null;
+  savedReadingId = updated.id; // same as editReadingId, but now type-safe
+} else {
+  console.log('Creating new reading');
 
-    const rightPath = rightLane.imageUri
-      ? await SupabaseStorageService.uploadImage(rightLane.imageUri, savedReading.id, 'right')
-      : null;
+  const saved = await SupabaseStorageService.createReading(reading);
 
-    console.log('Uploaded paths:', { leftPath, rightPath });
+  if (!saved) {
+    Alert.alert('Error', 'Failed to save reading');
+    return;
+  }
 
-    // 3) store paths on the reading row
-    if (leftPath || rightPath) {
-      const ok = await SupabaseStorageService.updateReadingPhotoPaths({
-        readingId: savedReading.id,
-        leftPhotoPath: leftPath ?? undefined,
-        rightPhotoPath: rightPath ?? undefined,
-      });
+  savedReadingId = saved.id;
+}
 
-      console.log('updateReadingPhotoPaths ok:', ok);
-    }
+if (!savedReadingId) {
+  Alert.alert('Error', 'Failed to determine saved reading id');
+  return;
+}
 
-    // 4) success UI + reset form
-    console.log('Reading saved successfully');
-    Alert.alert('Success', 'Reading saved successfully', [
-      {
-        text: 'OK',
-        onPress: () => {
-          setLeftLane(getEmptyLaneReading());
-          setRightLane(getEmptyLaneReading());
-          setSession('');
-          setPair('');
-          Keyboard.dismiss();
-        },
-      },
-    ]);
+console.log('Saved reading id:', savedReadingId);
+
+// 2) upload photos (if any)
+const isLocalFileUri = (uri: string) =>
+  uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://');
+
+let leftPath: string | null = null;
+let rightPath: string | null = null;
+
+const leftUri = leftLane.imageUri;
+if (leftUri && isLocalFileUri(leftUri)) {
+  leftPath = await SupabaseStorageService.uploadImage(leftUri, savedReadingId, 'left');
+}
+
+const rightUri = rightLane.imageUri;
+if (rightUri && isLocalFileUri(rightUri)) {
+  rightPath = await SupabaseStorageService.uploadImage(rightUri, savedReadingId, 'right');
+}
+
+// 3) store paths on the reading row
+if (leftPath || rightPath) {
+  await SupabaseStorageService.updateReadingPhotoPaths({
+    readingId: savedReadingId,
+    leftPhotoPath: leftPath ?? undefined,
+    rightPhotoPath: rightPath ?? undefined,
+  });
+}
+
+// 4) success UI
+Alert.alert('Success', 'Reading saved successfully', [
+  {
+    text: 'OK',
+    onPress: () => {
+      if (editReadingId) {
+        router.back();
+        return;
+      }
+
+      setLeftLane(getEmptyLaneReading());
+      setRightLane(getEmptyLaneReading());
+      setSession('');
+      setPair('');
+      Keyboard.dismiss();
+    },
+  },
+]);
+    
   } catch (e) {
     console.error('Save reading exception:', e);
     Alert.alert('Error', 'Failed to save reading');
@@ -532,7 +643,9 @@ export default function RecordScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Record Reading</Text>
+          <Text style={styles.headerTitle}>
+            {isEditing ? 'Edit Reading' : 'Record Reading'}
+</Text>
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>

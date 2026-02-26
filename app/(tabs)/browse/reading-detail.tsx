@@ -1,3 +1,5 @@
+//app(tabs)/browse/reading-detail.tsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -40,16 +42,27 @@ export default function ReadingDetailScreen() {
     if (foundTrack) setTrack(foundTrack);
 
     // Load readings for this track and find the one
-    const readings = await SupabaseStorageService.getReadingsForTrack(params.trackId as string);
-    const foundReading = readings.find((r) => r.id === params.readingId);
+    const foundReading = await SupabaseStorageService.getReadingById(
+      params.readingId as string
+);
 
     if (foundReading) {
-      setReading(foundReading);
-      console.log('Reading loaded:', foundReading.id);
-    } else {
-      console.log('Reading not found in list for track:', params.trackId);
-      setReading(null);
-    }
+  setReading(foundReading);
+  console.log('Reading loaded:', foundReading.id);
+
+  console.log('WEATHER on detail:', {
+    temp_f: foundReading.temp_f,
+    humidity_pct: foundReading.humidity_pct,
+    baro_inhg: foundReading.baro_inhg,
+    adr: foundReading.adr,
+    correction: foundReading.correction,
+    weather_ts: foundReading.weather_ts,
+  });
+
+} else {
+  console.log('Reading not found in list for track:', params.trackId);
+  setReading(null);
+}
   }, [params.readingId, params.trackId]);
 
   // Initial load
@@ -97,12 +110,9 @@ export default function ReadingDetailScreen() {
     if (!reading) return;
 
     router.push({
-      pathname: '/(tabs)/record',
-      params: {
-        editReadingId: reading.id,
-        trackId: reading.trackId,
-      },
-    });
+      pathname: "/(tabs)/record",
+      params: { editReadingId: reading.id, trackId: reading.trackId },
+});
   };
 
   const handleDelete = () => {
@@ -151,7 +161,64 @@ export default function ReadingDetailScreen() {
       return `${hours}:${minutes} ${ampm}`;
     }
   };
+  const fmtNum = (n: any, digits = 1) => {
+  const v = typeof n === "number" ? n : Number(n);
+  return Number.isFinite(v) ? v.toFixed(digits) : "N/A";
+};
 
+const hasWeather = (r: TrackReading) =>
+  r.temp_f != null ||
+  r.humidity_pct != null ||
+  r.baro_inhg != null ||
+  r.adr != null ||
+  r.correction != null ||
+  !!r.weather_ts;
+
+const renderWeatherSnapshot = (r: TrackReading) => {
+  if (!hasWeather(r)) return null;
+
+  return (
+    <View style={styles.laneSection}>
+      <Text style={styles.laneTitle}>Weather Snapshot</Text>
+
+      <View style={styles.dataRow}>
+        <View style={styles.dataItem}>
+          <Text style={styles.dataLabel}>Temp (°F)</Text>
+          <Text style={styles.dataValue}>{fmtNum(r.temp_f, 1)}</Text>
+        </View>
+
+        <View style={styles.dataItem}>
+          <Text style={styles.dataLabel}>Humidity (%)</Text>
+          <Text style={styles.dataValue}>{fmtNum(r.humidity_pct, 0)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.dataRow}>
+        <View style={styles.dataItem}>
+          <Text style={styles.dataLabel}>Barometer (inHg)</Text>
+          <Text style={styles.dataValue}>{fmtNum(r.baro_inhg, 3)}</Text>
+        </View>
+
+        <View style={styles.dataItem}>
+          <Text style={styles.dataLabel}>Correction</Text>
+          <Text style={styles.dataValue}>{fmtNum(r.correction, 4)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.dataRow}>
+        <View style={styles.dataItem}>
+          <Text style={styles.dataLabel}>ADR</Text>
+          <Text style={styles.dataValue}>{fmtNum(r.adr, 0)}</Text>
+        </View>
+
+        <View style={styles.dataItem}>
+          <Text style={styles.dataLabel}>Weather TS</Text>
+          <Text style={styles.dataValue}>{r.weather_ts || "N/A"}</Text>
+        </View>
+      </View>
+    </View>
+  );
+};
   const getDisplayDate = (r: TrackReading) => r.trackDate || r.date;
 
   const getDisplayTime = (r: TrackReading) => {
@@ -361,7 +428,7 @@ export default function ReadingDetailScreen() {
             </View>
           ) : null}
         </View>
-
+        {renderWeatherSnapshot(reading)}
         {renderLaneData(reading.leftLane, 'Left Lane')}
         {renderLaneData(reading.rightLane, 'Right Lane')}
       </ScrollView>

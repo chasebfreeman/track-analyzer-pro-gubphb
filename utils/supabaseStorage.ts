@@ -10,9 +10,10 @@ export class SupabaseStorageService {
   // ============================================
 
   private static safeNumber(value: any): number | null {
-    const n = typeof value === 'number' ? value : Number(value);
-    return Number.isFinite(n) ? n : null;
-  }
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
   private static getTrackDateFromTimestamp(ms: number, timeZone: string): string {
     try {
@@ -270,37 +271,47 @@ export class SupabaseStorageService {
   return this.getReadingById(data.id);
 }
 
-  static async updateReading(readingId: string, updates: Partial<TrackReading>): Promise<boolean> {
-    if (!isSupabaseConfigured()) return false;
+  static async updateReading(
+  readingId: string,
+  updates: Partial<TrackReading>
+): Promise<TrackReading | null> {
+  if (!isSupabaseConfigured()) return null;
 
-    const updateData: any = {};
+  const updateData: any = {};
 
-    if (updates.date !== undefined) updateData.date = updates.date;
-    if (updates.time !== undefined) updateData.time = updates.time;
-    if (updates.timestamp !== undefined) updateData.timestamp = Math.trunc(updates.timestamp);
-    if (updates.year !== undefined) updateData.year = updates.year;
-    if (updates.session !== undefined) updateData.session = updates.session;
-    if (updates.pair !== undefined) updateData.pair = updates.pair;
-    if (updates.classCurrentlyRunning !== undefined) updateData.class_currently_running = updates.classCurrentlyRunning;
-    if (updates.leftLane !== undefined) updateData.left_lane = updates.leftLane;
-    if (updates.rightLane !== undefined) updateData.right_lane = updates.rightLane;
-    if (updates.timeZone !== undefined) updateData.time_zone = updates.timeZone;
-    if (updates.trackDate !== undefined) updateData.track_date = updates.trackDate;
-    if (updates.temp_f !== undefined) updateData.temp_f = updates.temp_f;
-    if (updates.humidity_pct !== undefined) updateData.humidity_pct = updates.humidity_pct;
-    if (updates.baro_inhg !== undefined) updateData.baro_inhg = updates.baro_inhg;
-    if (updates.adr !== undefined) updateData.adr = updates.adr;
-    if (updates.correction !== undefined) updateData.correction = updates.correction;
-    if (updates.weather_ts !== undefined) updateData.weather_ts = updates.weather_ts;
-    const { error } = await supabase.from('readings').update(updateData).eq('id', readingId);
+  if (updates.date !== undefined) updateData.date = updates.date;
+  if (updates.time !== undefined) updateData.time = updates.time;
+  if (updates.timestamp !== undefined) updateData.timestamp = Math.trunc(updates.timestamp);
+  if (updates.year !== undefined) updateData.year = updates.year;
+  if (updates.session !== undefined) updateData.session = updates.session ?? null;
+  if (updates.pair !== undefined) updateData.pair = updates.pair ?? null;
+  if (updates.classCurrentlyRunning !== undefined)
+    updateData.class_currently_running = updates.classCurrentlyRunning ?? null;
 
-    if (error) {
-      console.error('Error updating reading:', error);
-      return false;
-    }
+  if (updates.leftLane !== undefined) updateData.left_lane = updates.leftLane;
+  if (updates.rightLane !== undefined) updateData.right_lane = updates.rightLane;
 
-    return true;
+  if (updates.timeZone !== undefined) updateData.time_zone = updates.timeZone ?? null;
+  if (updates.trackDate !== undefined) updateData.track_date = updates.trackDate ?? null;
+
+  // weather snapshot fields
+  if (updates.temp_f !== undefined) updateData.temp_f = updates.temp_f ?? null;
+  if (updates.humidity_pct !== undefined) updateData.humidity_pct = updates.humidity_pct ?? null;
+  if (updates.baro_inhg !== undefined) updateData.baro_inhg = updates.baro_inhg ?? null;
+  if (updates.adr !== undefined) updateData.adr = updates.adr ?? null;
+  if (updates.correction !== undefined) updateData.correction = updates.correction ?? null;
+  if (updates.weather_ts !== undefined) updateData.weather_ts = updates.weather_ts ?? null;
+
+  const { error } = await supabase.from("readings").update(updateData).eq("id", readingId);
+
+  if (error) {
+    console.error("Error updating reading:", error);
+    return null;
   }
+
+  // Return the updated row in app-friendly shape
+  return await this.getReadingById(readingId);
+}
 
   static async deleteReading(readingId: string): Promise<boolean> {
     if (!isSupabaseConfigured()) return false;
