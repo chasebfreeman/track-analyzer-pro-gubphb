@@ -162,7 +162,7 @@ export default function ReadingDetailScreen() {
       return `${hours}:${minutes} ${ampm}`;
     }
   };
-  const fmtTs = (ts?: string) => {
+  const fmtTs = (ts?: string | null) => {
   if (!ts) return "N/A";
 
   const d = new Date(ts);
@@ -216,7 +216,10 @@ const renderWeatherSnapshot = (r: TrackReading) => {
           <Text style={styles.dataLabel}>Barometer (inHg)</Text>
           <Text style={styles.dataValue}>{fmtNum(r.baro_inhg, 3)}</Text>
         </View>
-
+      <View style={styles.dataItem}>
+      <Text style={styles.dataLabel}>UV Index</Text>
+      <Text style={styles.dataValue}>{fmtNum(r.uv_index, 1)}</Text>
+      </View>
         <View style={styles.dataItem}>
           <Text style={styles.dataLabel}>Correction</Text>
           <Text style={styles.dataValue}>{fmtNum(r.correction, 4)}</Text>

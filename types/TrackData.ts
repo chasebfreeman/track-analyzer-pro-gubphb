@@ -38,12 +38,13 @@ export interface TrackReading {
   timeZone?: string;
   trackDate?: string;
     // ✅ Weather snapshot (applies to whole reading)
-  temp_f?: number;
-  humidity_pct?: number;
-  baro_inhg?: number;
-  adr?: number;
-  correction?: number;
-  weather_ts?: string;
+  temp_f?: number | null;
+humidity_pct?: number | null;
+baro_inhg?: number | null;
+uv_index?: number | null;
+adr?: number | null;
+correction?: number | null;
+weather_ts?: string | null;
 }
 
 

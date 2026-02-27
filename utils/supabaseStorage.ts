@@ -174,6 +174,7 @@ export class SupabaseStorageService {
         adr: this.safeNumber(reading.adr) ?? undefined,
         correction: this.safeNumber(reading.correction) ?? undefined,
         weather_ts: reading.weather_ts ?? undefined,
+        uv_index: this.safeNumber(reading.uv_index) ?? undefined,
       };
     });
   }
@@ -227,6 +228,7 @@ export class SupabaseStorageService {
   adr: this.safeNumber(data.adr) ?? undefined,
   correction: this.safeNumber(data.correction) ?? undefined,
   weather_ts: data.weather_ts ?? undefined,
+  uv_index: this.safeNumber(data.uv_index) ?? undefined,
 };
   }
 
@@ -259,6 +261,7 @@ export class SupabaseStorageService {
       adr: reading.adr ?? null,
       correction: reading.correction ?? null,
       weather_ts: reading.weather_ts ?? null,
+      uv_index: reading.uv_index ?? null,
     })
     .select()
     .single();
@@ -301,6 +304,7 @@ export class SupabaseStorageService {
   if (updates.adr !== undefined) updateData.adr = updates.adr ?? null;
   if (updates.correction !== undefined) updateData.correction = updates.correction ?? null;
   if (updates.weather_ts !== undefined) updateData.weather_ts = updates.weather_ts ?? null;
+  if (updates.uv_index !== undefined) updateData.uv_index = updates.uv_index ?? null;
 
   const { error } = await supabase.from("readings").update(updateData).eq("id", readingId);
 

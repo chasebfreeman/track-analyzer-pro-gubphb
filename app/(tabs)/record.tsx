@@ -28,6 +28,7 @@ type WeatherLive = {
     tempF: number;
     humidityPct: number;
     absPressureInHg: number;
+    uvIndex: number;
   };
   display: {
     ts: string;
@@ -52,6 +53,7 @@ async function fetchEliteTrackWeatherSnapshot() {
     baro_inhg: json.inputs.absPressureInHg,
     adr: json.display.adr,
     correction: json.display.correction,
+    uv_index: json.inputs.uvIndex,
   };
 }
 
@@ -336,24 +338,26 @@ if (existing) {
 
 // 🌤 Weather handling
 let weather: {
-  weather_ts?: string;
-  temp_f?: number;
-  humidity_pct?: number;
-  baro_inhg?: number;
-  adr?: number;
-  correction?: number;
+  weather_ts?: string | null;
+  temp_f?: number | null;
+  humidity_pct?: number | null;
+  baro_inhg?: number | null;
+  uv_index?: number | null;
+  adr?: number | null;
+  correction?: number | null;
 } | null = null;
 
 if (existing) {
   // 🔒 Preserve original weather snapshot
   weather = {
-    weather_ts: existing.weather_ts,
-    temp_f: existing.temp_f,
-    humidity_pct: existing.humidity_pct,
-    baro_inhg: existing.baro_inhg,
-    adr: existing.adr,
-    correction: existing.correction,
-  };
+  weather_ts: existing.weather_ts,
+  temp_f: existing.temp_f,
+  humidity_pct: existing.humidity_pct,
+  baro_inhg: existing.baro_inhg,
+  uv_index: existing.uv_index,
+  adr: existing.adr,
+  correction: existing.correction,
+};
 } else {
   // 🆕 New reading → fetch live weather
   try {
@@ -376,13 +380,14 @@ if (existing) {
     timeZone,
     trackDate,
   ...(weather ? {
-      temp_f: weather.temp_f,
-      humidity_pct: weather.humidity_pct,
-     baro_inhg: weather.baro_inhg,
-     adr: weather.adr,
-     correction: weather.correction,
-     weather_ts: weather.weather_ts,
-  } : {}),
+  temp_f: weather.temp_f ?? undefined,
+  humidity_pct: weather.humidity_pct ?? undefined,
+  baro_inhg: weather.baro_inhg ?? undefined,
+  uv_index: weather.uv_index ?? undefined,
+  adr: weather.adr ?? undefined,
+  correction: weather.correction ?? undefined,
+  weather_ts: weather.weather_ts ?? undefined,
+} : {}),
 };
 
     console.log('Saving new reading:', reading);
