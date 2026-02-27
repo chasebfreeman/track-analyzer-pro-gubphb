@@ -15,6 +15,7 @@ import {
   Modal,
   InputAccessoryView,
 } from 'react-native';
+import { safeHttpUri } from '@/utils/safeUri';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useFocusEffect, Stack, useRouter } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
@@ -490,46 +491,51 @@ Alert.alert('Success', 'Reading saved successfully', [
   };
 
   const renderLaneInputs = (
-    lane: LaneReading,
+   lane: LaneReading,
     setLane: (lane: LaneReading) => void,
-    title: string,
-    laneType: 'left' | 'right'
-  ) => {
+     title: string,
+   laneType: 'left' | 'right'
+) => {
+  // ✅ must be outside JSX
+  const safePreviewUri =
+    typeof lane.imageUri === 'string' && lane.imageUri.trim().length > 0
+      ? lane.imageUri.trim()
+      : null;
     return (
-      <View style={styles.laneSection}>
-        <Text style={styles.laneTitle}>{title}</Text>
+    <View style={styles.laneSection}>
+      <Text style={styles.laneTitle}>{title}</Text>
 
-        <View style={styles.inputRow}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Track Temp</Text>
-            <TextInput
-              style={styles.input}
-              value={lane.trackTemp}
-              onChangeText={(text) => setLane({ ...lane, trackTemp: text })}
-              placeholder="°F"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="numeric"
-              returnKeyType="done"
-              onSubmitEditing={() => Keyboard.dismiss()}
-              {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>UV Index</Text>
-            <TextInput
-              style={styles.input}
-              value={lane.uvIndex}
-              onChangeText={(text) => setLane({ ...lane, uvIndex: text })}
-              placeholder="0-11"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="numeric"
-              returnKeyType="done"
-              onSubmitEditing={() => Keyboard.dismiss()}
-              {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
-            />
-          </View>
+      <View style={styles.inputRow}>
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Track Temp</Text>
+          <TextInput
+            style={styles.input}
+            value={lane.trackTemp}
+            onChangeText={(text) => setLane({ ...lane, trackTemp: text })}
+            placeholder="°F"
+            placeholderTextColor={colors.textSecondary}
+            keyboardType="numeric"
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
+            {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+          />
         </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>UV Index</Text>
+          <TextInput
+            style={styles.input}
+            value={lane.uvIndex}
+            onChangeText={(text) => setLane({ ...lane, uvIndex: text })}
+            placeholder="0-11"
+            placeholderTextColor={colors.textSecondary}
+            keyboardType="numeric"
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
+            {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+          />
+        </View>
+      </View>
 
         <View style={styles.inputRow}>
           <View style={styles.inputGroup}>
@@ -627,14 +633,17 @@ Alert.alert('Success', 'Reading saved successfully', [
         </View>
 
         <TouchableOpacity style={styles.imageButton} onPress={() => openImageActions(laneType)}>
-          <IconSymbol ios_icon_name="camera" android_material_icon_name="camera" size={24} color={colors.primary} />
-          <Text style={styles.imageButtonText}>{lane.imageUri ? 'Photo Options' : 'Add Photo'}</Text>
-        </TouchableOpacity>
+        <IconSymbol ios_icon_name="camera" android_material_icon_name="camera" size={24} color={colors.primary} />
+        <Text style={styles.imageButtonText}>{lane.imageUri ? 'Photo Options' : 'Add Photo'}</Text>
+      </TouchableOpacity>
 
-        {lane.imageUri && <Image source={{ uri: lane.imageUri }} style={styles.previewImage} />}
-      </View>
-    );
-  };
+      {/* ✅ safe preview */}
+      {safePreviewUri ? (
+        <Image source={{ uri: safePreviewUri }} style={styles.previewImage} />
+      ) : null}
+    </View>
+  );
+};
 
   const styles = getStyles(colors);
 
