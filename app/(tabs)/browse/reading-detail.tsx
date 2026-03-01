@@ -80,42 +80,89 @@ export default function ReadingDetailScreen() {
 
   // Load signed image URLs whenever reading changes
   useEffect(() => {
-    async function loadSignedUrls() {
+  let cancelled = false;
+
+  async function loadSignedUrls() {
+    try {
       if (!reading) {
-    console.log("DEBUG signed url values:", { leftUrl: null, rightUrl: null });
-        setLeftImageUrl(null);
-        setRightImageUrl(null);
+        console.log("[ReadingDetail] no reading yet → clear image urls");
+        if (!cancelled) {
+          setLeftImageUrl(null);
+          setRightImageUrl(null);
+        }
         return;
       }
 
+      // 1) Find stored paths on the reading object (DB fields)
       const leftPath =
-        (reading as any).left_photo_path ?? (reading as any).leftPhotoPath ?? null;
-      const rightPath =
-        (reading as any).right_photo_path ?? (reading as any).rightPhotoPath ?? null;
+        (reading as any).left_photo_path ??
+        (reading as any).leftPhotoPath ??
+        null;
 
-      const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
-        leftPhotoPath: leftPath,
-        rightPhotoPath: rightPath,
-        expiresInSeconds: 60 * 60 * 24, // 24 hours for testing
+      const rightPath =
+        (reading as any).right_photo_path ??
+        (reading as any).rightPhotoPath ??
+        null;
+
+      console.log("[ReadingDetail] photo paths found:", {
+        readingId: (reading as any).id,
+        leftPath,
+        rightPath,
       });
 
-      setLeftImageUrl(safeHttpUri(leftUrl));
-      setRightImageUrl(safeHttpUri(rightUrl));
+      // If no paths saved, nothing to sign
+      if (!leftPath && !rightPath) {
+        console.log("[ReadingDetail] no photo paths on reading → nothing to load");
+        if (!cancelled) {
+          setLeftImageUrl(null);
+          setRightImageUrl(null);
+        }
+        return;
+      }
 
-      console.log('Signed URLs:', { leftUrl: !!leftUrl, rightUrl: !!rightUrl });
+      // 2) Get signed URLs (24h for testing)
+      const result = await SupabaseStorageService.getSignedUrlsForReading({
+        leftPhotoPath: leftPath,
+        rightPhotoPath: rightPath,
+        expiresInSeconds: 60 * 60 * 24,
+      });
+
+      const leftUrlRaw = result?.leftUrl ?? null;
+      const rightUrlRaw = result?.rightUrl ?? null;
+
+      console.log("[ReadingDetail] signed url results:", {
+        leftUrlRaw,
+        rightUrlRaw,
+      });
+
+      // 3) Sanitize once (or just set raw if you want)
+      const leftSafe = leftUrlRaw ? safeHttpUri(leftUrlRaw) : null;
+      const rightSafe = rightUrlRaw ? safeHttpUri(rightUrlRaw) : null;
+
+      console.log("[ReadingDetail] after safeHttpUri:", {
+        leftSafe,
+        rightSafe,
+      });
+
+      if (!cancelled) {
+        setLeftImageUrl(leftSafe);
+        setRightImageUrl(rightSafe);
+      }
+    } catch (e: any) {
+      console.log("[ReadingDetail] loadSignedUrls failed:", e?.message ?? e);
+      if (!cancelled) {
+        setLeftImageUrl(null);
+        setRightImageUrl(null);
+      }
     }
+  }
 
-    loadSignedUrls();
-  }, [reading]);
+  loadSignedUrls();
 
-  const handleEdit = () => {
-    if (!reading) return;
-
-    router.push({
-      pathname: "/(tabs)/record",
-      params: { editReadingId: reading.id, trackId: reading.trackId },
-});
+  return () => {
+    cancelled = true;
   };
+}, [reading]);
 
   const handleDelete = () => {
     console.log('User tapped Delete button');
@@ -308,6 +355,18 @@ const renderWeatherSnapshot = (r: TrackReading) => {
   );
 };
 
+
+const handleEdit = () => {
+  if (!reading) return;
+
+  router.push({
+    pathname: "/(tabs)/record",
+    params: {
+      editReadingId: reading.id,
+      trackId: reading.trackId,
+    },
+  });
+};
   const styles = getStyles(colors);
 
   if (!reading || !track) {

@@ -334,20 +334,34 @@ export class SupabaseStorageService {
   // STORAGE (SIGNED URLS + UPLOAD)
   // ============================================
 
-  static async getSignedImageUrl(objectPath: string, expiresInSeconds: number = 3600): Promise<string | null> {
-    if (!isSupabaseConfigured()) return null;
+  static async getSignedImageUrl(
+  objectPath: string,
+  expiresInSeconds: number = 3600
+): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
 
-    const { data, error } = await supabase.storage
-      .from('reading-photos')
-      .createSignedUrl(objectPath, expiresInSeconds);
-
-    if (error) {
-      console.error('Error creating signed URL:', error);
-      return null;
-    }
-
-    return data?.signedUrl ?? null;
+  if (!objectPath) {
+    console.log("[Storage] getSignedImageUrl called with empty path");
+    return null;
   }
+
+  const { data, error } = await supabase.storage
+    .from("reading-photos")
+    .createSignedUrl(objectPath, expiresInSeconds);
+
+  if (error) {
+    console.error("[Storage] createSignedUrl error:", {
+      message: error.message,
+      name: (error as any).name,
+      status: (error as any).status,
+      code: (error as any).code,
+      objectPath,
+    });
+    return null;
+  }
+
+  return data?.signedUrl ?? null;
+}
 static async getSignedUrlsForReading(params: {
   leftPhotoPath?: string | null;
   rightPhotoPath?: string | null;
