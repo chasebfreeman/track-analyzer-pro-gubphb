@@ -73,95 +73,86 @@ export default function ReadingDetailScreen() {
 
   // Refresh when coming back from Edit
   useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
-  );
+  useCallback(() => {
+    loadData();               // <-- reload every time this screen is focused
+  }, [loadData])
+);
 
-  // Load signed image URLs whenever reading changes
-  useEffect(() => {
-  let cancelled = false;
-
+// Load image URLs whenever reading changes
+useEffect(() => {
   async function loadSignedUrls() {
-    try {
-      if (!reading) {
-        console.log("[ReadingDetail] no reading yet → clear image urls");
-        if (!cancelled) {
-          setLeftImageUrl(null);
-          setRightImageUrl(null);
-        }
-        return;
-      }
+    if (!reading) {
+      setLeftImageUrl(null);
+      setRightImageUrl(null);
+      return;
+    }
 
-      // 1) Find stored paths on the reading object (DB fields)
-      const leftPath =
-        (reading as any).left_photo_path ??
-        (reading as any).leftPhotoPath ??
-        null;
+    const rawLeft =
+      (reading as any).left_photo_path ??
+      (reading as any).leftPhotoPath ??
+      null;
 
-      const rightPath =
-        (reading as any).right_photo_path ??
-        (reading as any).rightPhotoPath ??
-        null;
+    const rawRight =
+      (reading as any).right_photo_path ??
+      (reading as any).rightPhotoPath ??
+      null;
 
-      console.log("[ReadingDetail] photo paths found:", {
-        readingId: (reading as any).id,
-        leftPath,
-        rightPath,
-      });
+    const laneLeft = reading.leftLane?.imageUri ?? null;
+    const laneRight = reading.rightLane?.imageUri ?? null;
 
-      // If no paths saved, nothing to sign
-      if (!leftPath && !rightPath) {
-        console.log("[ReadingDetail] no photo paths on reading → nothing to load");
-        if (!cancelled) {
-          setLeftImageUrl(null);
-          setRightImageUrl(null);
-        }
-        return;
-      }
+    // 1) If DB already stored a full URL, just use it
+    const leftIsUrl = typeof rawLeft === "string" && /^https?:\/\//i.test(rawLeft);
+    const rightIsUrl = typeof rawRight === "string" && /^https?:\/\//i.test(rawRight);
 
-      // 2) Get signed URLs (24h for testing)
-      const result = await SupabaseStorageService.getSignedUrlsForReading({
+    // 2) Otherwise, try to sign a storage path
+    const leftPath =
+      !leftIsUrl && typeof rawLeft === "string" ? rawLeft :
+      (typeof laneLeft === "string" && laneLeft.startsWith("readings/") ? laneLeft : null);
+
+    const rightPath =
+      !rightIsUrl && typeof rawRight === "string" ? rawRight :
+      (typeof laneRight === "string" && laneRight.startsWith("readings/") ? laneRight : null);
+
+    console.log("PHOTO SOURCES (reading-detail)", {
+      rawLeft,
+      rawRight,
+      laneLeft,
+      laneRight,
+      leftIsUrl,
+      rightIsUrl,
+      leftPath,
+      rightPath,
+    });
+
+    // LEFT
+    if (leftIsUrl) {
+      setLeftImageUrl(safeHttpUri(rawLeft));
+    } else if (leftPath) {
+      const { leftUrl } = await SupabaseStorageService.getSignedUrlsForReading({
         leftPhotoPath: leftPath,
+        expiresInSeconds: 60 * 60 * 24,
+      });
+      setLeftImageUrl(leftUrl ? safeHttpUri(leftUrl) : null);
+    } else {
+      // fallback to lane.imageUri if it's already a URL
+      setLeftImageUrl(typeof laneLeft === "string" ? safeHttpUri(laneLeft) : null);
+    }
+
+    // RIGHT
+    if (rightIsUrl) {
+      setRightImageUrl(safeHttpUri(rawRight));
+    } else if (rightPath) {
+      const { rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
         rightPhotoPath: rightPath,
         expiresInSeconds: 60 * 60 * 24,
       });
-
-      const leftUrlRaw = result?.leftUrl ?? null;
-      const rightUrlRaw = result?.rightUrl ?? null;
-
-      console.log("[ReadingDetail] signed url results:", {
-        leftUrlRaw,
-        rightUrlRaw,
-      });
-
-      // 3) Sanitize once (or just set raw if you want)
-      const leftSafe = leftUrlRaw ? safeHttpUri(leftUrlRaw) : null;
-      const rightSafe = rightUrlRaw ? safeHttpUri(rightUrlRaw) : null;
-
-      console.log("[ReadingDetail] after safeHttpUri:", {
-        leftSafe,
-        rightSafe,
-      });
-
-      if (!cancelled) {
-        setLeftImageUrl(leftSafe);
-        setRightImageUrl(rightSafe);
-      }
-    } catch (e: any) {
-      console.log("[ReadingDetail] loadSignedUrls failed:", e?.message ?? e);
-      if (!cancelled) {
-        setLeftImageUrl(null);
-        setRightImageUrl(null);
-      }
+      setRightImageUrl(rightUrl ? safeHttpUri(rightUrl) : null);
+    } else {
+      setRightImageUrl(typeof laneRight === "string" ? safeHttpUri(laneRight) : null);
     }
   }
 
   loadSignedUrls();
-
-  return () => {
-    cancelled = true;
-  };
 }, [reading]);
 
   const handleDelete = () => {
@@ -297,8 +288,16 @@ const renderWeatherSnapshot = (r: TrackReading) => {
     return r.time;
   };
 
-  const renderLaneData = (lane: any, title: string) => {
+const renderLaneData = (lane: any, title: string) => {
+  const safeLeftUri = safeHttpUri(leftImageUrl);
+  const safeRightUri = safeHttpUri(rightImageUrl);
+
+  const displayUri =
+    title === "Left Lane"
+      ? (safeLeftUri ?? safeHttpUri(lane.imageUri))
+      : (safeRightUri ?? safeHttpUri(lane.imageUri));
   return (
+  
     <View style={styles.laneSection}>
       <Text style={styles.laneTitle}>{title}</Text>
 
@@ -324,33 +323,19 @@ const renderWeatherSnapshot = (r: TrackReading) => {
       ) : null}
 
       {/* Photos */}
-      {title === 'Left Lane' && leftImageUrl ? (
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() =>
-            router.push({
-              pathname: '/(modals)/photo-viewer',
-              params: { url: encodeURIComponent(leftImageUrl) },
-            })
-          }
-        >
-          <Image source={{ uri: leftImageUrl }} style={styles.laneImage} />
-        </TouchableOpacity>
-      ) : null}
-
-      {title === 'Right Lane' && rightImageUrl ? (
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() =>
-            router.push({
-              pathname: '/(modals)/photo-viewer',
-              params: { url: encodeURIComponent(rightImageUrl) },
-            })
-          }
-        >
-          <Image source={{ uri: rightImageUrl }} style={styles.laneImage} />
-        </TouchableOpacity>
-      ) : null}
+{displayUri ? (
+  <TouchableOpacity
+    activeOpacity={0.9}
+    onPress={() =>
+      router.push({
+        pathname: "/(modals)/photo-viewer",
+        params: { url: encodeURIComponent(displayUri) },
+      })
+    }
+  >
+    <Image source={{ uri: displayUri }} style={styles.laneImage} />
+  </TouchableOpacity>
+) : null}
     </View>
   );
 };
