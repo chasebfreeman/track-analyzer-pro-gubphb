@@ -82,6 +82,7 @@ export default function ReadingDetailScreen() {
   useEffect(() => {
     async function loadSignedUrls() {
       if (!reading) {
+    console.log("DEBUG signed url values:", { leftUrl: null, rightUrl: null });
         setLeftImageUrl(null);
         setRightImageUrl(null);
         return;
@@ -250,9 +251,6 @@ const renderWeatherSnapshot = (r: TrackReading) => {
   };
 
   const renderLaneData = (lane: any, title: string) => {
-  const safeLeftUri = safeHttpUri(leftImageUrl);
-  const safeRightUri = safeHttpUri(rightImageUrl);
-
   return (
     <View style={styles.laneSection}>
       <Text style={styles.laneTitle}>{title}</Text>
@@ -279,31 +277,31 @@ const renderWeatherSnapshot = (r: TrackReading) => {
       ) : null}
 
       {/* Photos */}
-      {title === 'Left Lane' && safeLeftUri ? (
+      {title === 'Left Lane' && leftImageUrl ? (
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() =>
             router.push({
               pathname: '/(modals)/photo-viewer',
-              params: { url: encodeURIComponent(safeLeftUri) },
+              params: { url: encodeURIComponent(leftImageUrl) },
             })
           }
         >
-          <Image source={{ uri: safeLeftUri }} style={styles.laneImage} />
+          <Image source={{ uri: leftImageUrl }} style={styles.laneImage} />
         </TouchableOpacity>
       ) : null}
 
-      {title === 'Right Lane' && safeRightUri ? (
+      {title === 'Right Lane' && rightImageUrl ? (
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() =>
             router.push({
               pathname: '/(modals)/photo-viewer',
-              params: { url: encodeURIComponent(safeRightUri) },
+              params: { url: encodeURIComponent(rightImageUrl) },
             })
           }
         >
-          <Image source={{ uri: safeRightUri }} style={styles.laneImage} />
+          <Image source={{ uri: rightImageUrl }} style={styles.laneImage} />
         </TouchableOpacity>
       ) : null}
     </View>
