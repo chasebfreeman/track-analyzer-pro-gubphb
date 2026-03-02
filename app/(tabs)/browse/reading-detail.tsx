@@ -1,5 +1,4 @@
 // app/(tabs)/browse/reading-detail.tsx
-
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   View,
@@ -14,151 +13,130 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 
 import { useThemeColors } from "@/styles/commonStyles";
-import { IconSymbol } from "@/components/IconSymbol";
+import { SupabaseStorageService } from "@/utils/supabaseStorage";
 import { safeHttpUri } from "@/utils/safeUri";
 
-import { SupabaseStorageService } from "@/utils/supabaseStorage";
-import { Track, TrackReading } from "@/types/TrackData";
+// If you have these types, keep them. If TS complains, you can loosen them to `any`.
+import { TrackReading } from "@/types/TrackData";
 
-// -------------------------
-// tiny helpers
-// -------------------------
-const isNil = (v: any) => v === null || v === undefined;
+type AnyObj = Record<string, any>;
 
-const pickFirst = <T,>(...vals: T[]): T | null => {
-  for (const v of vals) {
-    if (!isNil(v) && v !== "") return v;
-  }
-  return null;
-};
-
-const fmtNum = (v: any, decimals = 0) => {
-  if (isNil(v) || v === "") return "N/A";
-  const n = typeof v === "number" ? v : Number(v);
-  if (!Number.isFinite(n)) return "N/A";
-  return n.toFixed(decimals);
-};
-
-const fmtMaybe = (v: any) => {
-  if (isNil(v) || v === "") return "N/A";
-  return String(v);
-};
-
-function formatTimeInTimeZone(ms: number, timeZone: string) {
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date(ms));
-  } catch {
-    return "";
-  }
-}
-
-export default function ReadingDetail() {
+export default function ReadingDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ trackId?: string; readingId?: string }>();
-
   const colors = useThemeColors();
 
+  const params = useLocalSearchParams<{
+    trackId?: string;
+    readingId?: string;
+  }>();
+
+  const trackId = params.trackId;
+  const readingId = params.readingId;
+
   const [reading, setReading] = useState<TrackReading | null>(null);
-  const [track, setTrack] = useState<Track | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // lane image urls (storage public urls)
-  const [leftImageUrl, setLeftImageUrl] = useState<string | null>(null);
-  const [rightImageUrl, setRightImageUrl] = useState<string | null>(null);
+  // ----------------------------
+  // Helpers
+  // ----------------------------
+  const fmtNum = (v: any, digits = 1) => {
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n)) return "N/A";
+    return n.toFixed(digits);
+  };
 
-  const readingId = useMemo(() => {
-    if (typeof params.readingId === "string") return params.readingId;
-    return null;
-  }, [params.readingId]);
+  const fmtInt = (v: any) => {
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n)) return "N/A";
+    return String(Math.round(n));
+  };
 
-  const trackId = useMemo(() => {
-    if (typeof params.trackId === "string") return params.trackId;
-    return null;
-  }, [params.trackId]);
-
-  // -------------------------
-  // load reading + track
-  // -------------------------
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        if (!trackId || !readingId) {
-          setReading(null);
-          setTrack(null);
-          return;
-        }
-
-        // Track + reading are usually coming from SupabaseStorageService
-        // (matches your existing project pattern)
-        const t = await SupabaseStorageService.getTrack(trackId);
-        const r = await SupabaseStorageService.getReadingById(trackId, readingId);
-
-        if (cancelled) return;
-
-        setTrack(t ?? null);
-        setReading(r ?? null);
-      } catch (e: any) {
-        console.log("reading-detail load error:", e?.message ?? e);
-        if (!cancelled) {
-          setReading(null);
-          setTrack(null);
-        }
-      }
+  const pickFirst = (obj: AnyObj | null | undefined, keys: string[]) => {
+    if (!obj) return undefined;
+    for (const k of keys) {
+      const v = (obj as AnyObj)[k];
+      if (v !== undefined && v !== null && v !== "") return v;
     }
+    return undefined;
+  };
 
-    load();
-    return () => {
-      cancelled = true;
-    };
+  const fmtDate = (isoOrMs: any) => {
+    if (!isoOrMs) return "N/A";
+    const d =
+      typeof isoOrMs === "number"
+        ? new Date(isoOrMs)
+        : new Date(String(isoOrMs));
+    if (isNaN(d.getTime())) return "N/A";
+    // yyyy-mm-dd
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const fmtTime = (isoOrMs: any) => {
+    if (!isoOrMs) return "N/A";
+    const d =
+      typeof isoOrMs === "number"
+        ? new Date(isoOrMs)
+        : new Date(String(isoOrMs));
+    if (isNaN(d.getTime())) return "N/A";
+    let h = d.getHours();
+    const min = String(d.getMinutes()).padStart(2, "0");
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${min} ${ampm}`;
+  };
+
+  const hasWeather = (r: TrackReading) => {
+    const temp = pickFirst(r as AnyObj, ["temp_f", "tempF"]);
+    const hum = pickFirst(r as AnyObj, ["humidity_pct", "humidityPct"]);
+    const baro = pickFirst(r as AnyObj, ["baro_inhg", "absPressureInHg", "baro"]);
+    const adr = pickFirst(r as AnyObj, ["adr"]);
+    const corr = pickFirst(r as AnyObj, ["correction"]);
+    const ts = pickFirst(r as AnyObj, ["weather_ts", "weatherTs", "weather_timestamp"]);
+    // show if we have at least temp+humidity or baro
+    return (
+      temp !== undefined ||
+      hum !== undefined ||
+      baro !== undefined ||
+      adr !== undefined ||
+      corr !== undefined ||
+      ts !== undefined
+    );
+  };
+
+  // ----------------------------
+  // Load reading
+  // ----------------------------
+  const loadReading = useCallback(async () => {
+    if (!trackId || !readingId) return;
+    setLoading(true);
+    try {
+      // This matches how you’ve been loading from SupabaseStorageService elsewhere.
+      // If your service signature differs, adjust here only.
+      const list = await SupabaseStorageService.getReadingsForTrack(trackId);
+      const found = list?.find((x: any) => String(x.id) === String(readingId)) ?? null;
+      setReading(found);
+    } catch (e: any) {
+      console.error("Failed to load reading:", e);
+      Alert.alert("Error", "Failed to load reading.");
+      setReading(null);
+    } finally {
+      setLoading(false);
+    }
   }, [trackId, readingId]);
 
-  // -------------------------
-  // resolve image URLs (if any)
-  // -------------------------
   useEffect(() => {
-    let cancelled = false;
+    loadReading();
+  }, [loadReading]);
 
-    async function loadImages() {
-      try {
-        if (!reading) return;
-
-        const leftPath =
-          (reading.leftLane as any)?.imagePath ??
-          (reading.leftLane as any)?.image_path ??
-          null;
-        const rightPath =
-          (reading.rightLane as any)?.imagePath ??
-          (reading.rightLane as any)?.image_path ??
-          null;
-
-        const leftUrl = leftPath
-          ? SupabaseStorageService.getPublicUrl(leftPath)
-          : null;
-        const rightUrl = rightPath
-          ? SupabaseStorageService.getPublicUrl(rightPath)
-          : null;
-
-        if (cancelled) return;
-        setLeftImageUrl(leftUrl);
-        setRightImageUrl(rightUrl);
-      } catch (e) {
-        console.log("loadImages error:", e);
-      }
-    }
-
-    loadImages();
-    return () => {
-      cancelled = true;
-    };
-  }, [reading]);
-
-  const handleDelete = useCallback(() => {
-    if (!reading || !trackId) return;
+  // ----------------------------
+  // Delete
+  // ----------------------------
+  const onDelete = async () => {
+    if (!reading?.id) return;
 
     Alert.alert("Delete reading?", "This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
@@ -167,69 +145,73 @@ export default function ReadingDetail() {
         style: "destructive",
         onPress: async () => {
           try {
-            await SupabaseStorageService.deleteReading(trackId, reading.id);
+            await SupabaseStorageService.deleteReading(String(reading.id));
             router.back();
-          } catch (e: any) {
-            Alert.alert("Error", e?.message ?? "Failed to delete reading");
+          } catch (e) {
+            console.error("Delete failed:", e);
+            Alert.alert("Error", "Failed to delete reading.");
           }
         },
       },
     ]);
-  }, [reading, trackId, router]);
-
-  const handleEdit = useCallback(() => {
-    if (!reading) return;
-
-    router.push({
-      pathname: "/(tabs)/record",
-      params: {
-        editReadingId: reading.id,
-        trackId: reading.trackId,
-      },
-    });
-  }, [reading, router]);
-
-  // -------------------------
-  // display helpers (top card)
-  // -------------------------
-  const getDisplayDate = (r: TrackReading) =>
-    (r as any).trackDate || (r as any).date || "—";
-
-  const getDisplayTime = (r: TrackReading) => {
-    const tz = (r as any).timeZone;
-    const ts = (r as any).timestamp;
-    if (tz && ts) return formatTimeInTimeZone(ts, tz);
-    return (r as any).time || "—";
   };
 
-  // -------------------------
-  // Weather Snapshot (card)
-  // -------------------------
-  const hasWeather = (r: TrackReading) => {
-    const anyR: any = r as any;
+  // ----------------------------
+  // UI blocks
+  // ----------------------------
+  const renderInfoCard = (r: TrackReading) => {
+    const trackName =
+      pickFirst(r as AnyObj, ["trackName", "track_name", "track"]) ?? "N/A";
+
+    const created =
+      pickFirst(r as AnyObj, ["created_at", "createdAt", "timestamp", "ts"]) ??
+      pickFirst(r as AnyObj, ["date", "time"]);
+
+    const session = pickFirst(r as AnyObj, ["session", "sessionName"]);
+    const pair = pickFirst(r as AnyObj, ["pair", "driverPair"]);
+
     return (
-      !isNil(anyR.temp_f) ||
-      !isNil(anyR.humidity_pct) ||
-      !isNil(anyR.baro_inhg) ||
-      !isNil(anyR.adr) ||
-      !isNil(anyR.correction) ||
-      !isNil(anyR.weather_ts) ||
-      !isNil(anyR.uv_index) ||
-      !isNil(anyR.uvIndex)
+      <View style={styles.infoCard}>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoIcon}>🏁</Text>
+          <Text style={styles.infoText}>{String(trackName)}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoIcon}>📅</Text>
+          <Text style={styles.infoText}>{fmtDate(created)}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoIcon}>🕒</Text>
+          <Text style={styles.infoText}>{fmtTime(created)}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoIcon}>🧾</Text>
+          <Text style={styles.infoText}>
+            Session: {session ? String(session) : "N/A"}
+          </Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoIcon}>👥</Text>
+          <Text style={styles.infoText}>Pair: {pair ? String(pair) : "N/A"}</Text>
+        </View>
+      </View>
     );
   };
 
   const renderWeatherSnapshot = (r: TrackReading) => {
     if (!hasWeather(r)) return null;
 
-    const anyR: any = r as any;
-    const uv = pickFirst(anyR.uv_index, anyR.uvIndex);
-    const weatherTs = anyR.weather_ts;
-
-    const snapshotTime =
-      typeof weatherTs === "number"
-        ? new Date(weatherTs).toLocaleString()
-        : fmtMaybe(weatherTs);
+    const temp = pickFirst(r as AnyObj, ["temp_f", "tempF"]);
+    const hum = pickFirst(r as AnyObj, ["humidity_pct", "humidityPct"]);
+    const baro = pickFirst(r as AnyObj, ["baro_inhg", "absPressureInHg", "baro"]);
+    const uv = pickFirst(r as AnyObj, ["uv_index", "uvIndex"]);
+    const adr = pickFirst(r as AnyObj, ["adr"]);
+    const corr = pickFirst(r as AnyObj, ["correction"]);
+    const ts = pickFirst(r as AnyObj, ["weather_ts", "weatherTs", "weather_timestamp"]);
 
     return (
       <View style={styles.laneSection}>
@@ -238,395 +220,314 @@ export default function ReadingDetail() {
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Temp (°F)</Text>
-            <Text style={styles.dataValue}>{fmtNum(anyR.temp_f, 1)}</Text>
+            <Text style={styles.dataValue}>{fmtNum(temp, 1)}</Text>
           </View>
-
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Humidity (%)</Text>
-            <Text style={styles.dataValue}>{fmtNum(anyR.humidity_pct, 0)}</Text>
+            <Text style={styles.dataValue}>{fmtNum(hum, 0)}</Text>
           </View>
         </View>
 
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Barometer (inHg)</Text>
-            <Text style={styles.dataValue}>{fmtNum(anyR.baro_inhg, 3)}</Text>
+            <Text style={styles.dataValue}>{fmtNum(baro, 3)}</Text>
           </View>
-
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>UV Index</Text>
-            <Text style={styles.dataValue}>{fmtNum(uv, 1)}</Text>
+            <Text style={styles.dataValue}>
+              {uv === undefined || uv === null || uv === "" ? "N/A" : fmtNum(uv, 1)}
+            </Text>
+          </View>
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Correction</Text>
+            <Text style={styles.dataValue}>{fmtNum(corr, 4)}</Text>
           </View>
         </View>
 
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>ADR</Text>
-            <Text style={styles.dataValue}>{fmtNum(anyR.adr, 2)}</Text>
+            <Text style={styles.dataValue}>{fmtNum(adr, 2)}</Text>
           </View>
-
           <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Correction</Text>
-            <Text style={styles.dataValue}>{fmtNum(anyR.correction, 4)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.dataRow}>
-          <View style={styles.dataItemFull}>
             <Text style={styles.dataLabel}>Snapshot Time</Text>
-            <Text style={styles.dataValue}>{snapshotTime}</Text>
+            <Text style={styles.dataValue}>
+              {ts ? `${fmtDate(ts)},\n${fmtTime(ts)}` : "N/A"}
+            </Text>
           </View>
         </View>
       </View>
     );
   };
 
-  // -------------------------
-  // Lane card (FULL fields)
-  // -------------------------
-  const laneGet = (lane: any, ...keys: string[]) => {
-    if (!lane) return null;
-    for (const k of keys) {
-      const v = lane[k];
-      if (!isNil(v) && v !== "") return v;
-    }
-    return null;
-  };
+  const renderLaneData = (lane: AnyObj, title: string) => {
+    // Flexible lane keys (so you don’t get burned by naming differences)
+    const trackTemp = pickFirst(lane, ["trackTemp", "track_temp"]);
+    const uvIndex = pickFirst(lane, ["uvIndex", "uv_index"]);
+    const kegSL = pickFirst(lane, ["kegSL", "keg_sl", "kegSl"]);
+    const kegOut = pickFirst(lane, ["kegOut", "keg_out"]);
+    const grippoSL = pickFirst(lane, ["grippoSL", "grippo_sl", "grippoSl"]);
+    const grippoOut = pickFirst(lane, ["grippoOut", "grippo_out"]);
+    const shine = pickFirst(lane, ["shine"]);
+    const notes = pickFirst(lane, ["notes", "note"]);
+    const img = pickFirst(lane, ["imageUrl", "image_url", "imageUri", "image_uri", "photoUrl"]);
 
-  const renderLaneData = (lane: any, title: string) => {
-    const safeLeftUri = safeHttpUri(leftImageUrl);
-    const safeRightUri = safeHttpUri(rightImageUrl);
-
-    const fallbackUri = safeHttpUri(lane?.imageUri || lane?.image_url || lane?.imageUrl);
-
-    const displayUri =
-      title === "Left Lane"
-        ? pickFirst(safeLeftUri, fallbackUri)
-        : pickFirst(safeRightUri, fallbackUri);
-
-    const trackTemp = laneGet(lane, "trackTemp", "track_temp", "track_temperature");
-    const uvIndex = laneGet(lane, "uvIndex", "uv_index", "uv");
-
-    const kegSl = laneGet(lane, "kegSl", "keg_sl", "kegSL");
-    const kegOut = laneGet(lane, "kegOut", "keg_out", "kegOUT");
-
-    const grippoSl = laneGet(lane, "grippoSl", "grippo_sl", "grippoSL");
-    const grippoOut = laneGet(lane, "grippoOut", "grippo_out", "grippoOUT");
-
-    const shine = laneGet(lane, "shine", "trackShine", "track_shine");
-    const notes = laneGet(lane, "notes", "laneNotes", "lane_notes");
+    const safeImg = safeHttpUri(typeof img === "string" ? img : undefined);
 
     return (
       <View style={styles.laneSection}>
         <Text style={styles.laneTitle}>{title}</Text>
 
+        {/* Row 1 */}
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Track Temp</Text>
-            <Text style={styles.dataValue}>{fmtNum(trackTemp, 0)}</Text>
+            <Text style={styles.dataValue}>
+              {trackTemp === undefined || trackTemp === null || trackTemp === ""
+                ? "N/A"
+                : fmtInt(trackTemp)}
+            </Text>
           </View>
-
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>UV Index</Text>
-            <Text style={styles.dataValue}>{fmtNum(uvIndex, 1)}</Text>
+            <Text style={styles.dataValue}>
+              {uvIndex === undefined || uvIndex === null || uvIndex === ""
+                ? "N/A"
+                : fmtNum(uvIndex, 1)}
+            </Text>
           </View>
         </View>
 
+        {/* Row 2 */}
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Keg SL</Text>
-            <Text style={styles.dataValue}>{fmtNum(kegSl, 0)}</Text>
+            <Text style={styles.dataValue}>
+              {kegSL === undefined || kegSL === null || kegSL === "" ? "N/A" : fmtInt(kegSL)}
+            </Text>
           </View>
-
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Keg Out</Text>
-            <Text style={styles.dataValue}>{fmtNum(kegOut, 0)}</Text>
+            <Text style={styles.dataValue}>
+              {kegOut === undefined || kegOut === null || kegOut === "" ? "N/A" : fmtInt(kegOut)}
+            </Text>
           </View>
         </View>
 
+        {/* Row 3 */}
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Grippo SL</Text>
-            <Text style={styles.dataValue}>{fmtNum(grippoSl, 0)}</Text>
+            <Text style={styles.dataValue}>
+              {grippoSL === undefined || grippoSL === null || grippoSL === ""
+                ? "N/A"
+                : fmtInt(grippoSL)}
+            </Text>
           </View>
-
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Grippo Out</Text>
-            <Text style={styles.dataValue}>{fmtNum(grippoOut, 0)}</Text>
+            <Text style={styles.dataValue}>
+              {grippoOut === undefined || grippoOut === null || grippoOut === ""
+                ? "N/A"
+                : fmtInt(grippoOut)}
+            </Text>
           </View>
         </View>
 
+        {/* Shine (full width feel) */}
         <View style={styles.dataRow}>
-          <View style={styles.dataItemFull}>
+          <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Shine</Text>
-            <Text style={styles.dataValue}>{fmtMaybe(shine)}</Text>
+            <Text style={[styles.dataValue, { fontSize: 24 }]}>
+              {shine ? String(shine) : "N/A"}
+            </Text>
           </View>
+          <View style={styles.dataItem} />
         </View>
 
-        {notes ? (
-          <View style={styles.notesSection}>
-            <Text style={styles.dataLabel}>Notes</Text>
-            <Text style={styles.notesText}>{String(notes)}</Text>
-          </View>
-        ) : null}
+        {/* Notes */}
+        <View style={styles.notesSection}>
+          <Text style={styles.dataLabel}>Notes</Text>
+          <Text style={styles.notesText}>{notes ? String(notes) : "—"}</Text>
+        </View>
 
-        {displayUri ? (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() =>
-              router.push({
-                pathname: "/(modals)/photo-viewer",
-                params: { url: encodeURIComponent(displayUri) },
-              })
-            }
-          >
-            <Image source={{ uri: displayUri }} style={styles.laneImage} />
-          </TouchableOpacity>
-        ) : null}
+        {/* Optional photo (won’t mess layout if absent) */}
+        {safeImg ? <Image source={{ uri: safeImg }} style={styles.laneImage} /> : null}
       </View>
     );
   };
 
-  const styles = getStyles(colors);
-
-  if (!reading || !track) {
+  // ----------------------------
+  // Derived
+  // ----------------------------
+  const leftLane = useMemo(() => {
+    const r: AnyObj | null = reading as any;
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="arrow-back"
-              size={24}
-              color={colors.text}
-            />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Loading...</Text>
+      (r && (r.leftLane || r.left_lane || r.left)) ||
+      {}
+    );
+  }, [reading]);
+
+  const rightLane = useMemo(() => {
+    const r: AnyObj | null = reading as any;
+    return (
+      (r && (r.rightLane || r.right_lane || r.right)) ||
+      {}
+    );
+  }, [reading]);
+
+  // ----------------------------
+  // Render
+  // ----------------------------
+  if (!trackId || !readingId) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={{ padding: 16 }}>
+          <Text style={{ color: colors.text, fontSize: 16 }}>
+            Missing trackId or readingId.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (loading || !reading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={{ padding: 16 }}>
+          <Text style={{ color: colors.text, fontSize: 16 }}>
+            {loading ? "Loading..." : "Reading not found."}
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol
-            ios_icon_name="chevron.left"
-            android_material_icon_name="arrow-back"
-            size={24}
-            color={colors.text}
-          />
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
+          <Text style={[styles.headerButtonText, { color: colors.text }]}>{"‹"}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Reading Details</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Reading Details</Text>
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleEdit} style={styles.iconButton}>
-            <IconSymbol
-              ios_icon_name="pencil"
-              android_material_icon_name="edit"
-              size={24}
-              color={colors.primary}
-            />
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          {/* Keep edit icon slot (won’t break anything). If you don’t want it, delete this block. */}
+          <TouchableOpacity
+            onPress={() => router.push(`/browse/edit-reading?trackId=${trackId}&readingId=${readingId}`)}
+            style={styles.headerButton}
+          >
+            <Text style={[styles.headerButtonText, { color: "#1e74ff" }]}>✎</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleDelete} style={styles.iconButton}>
-            <IconSymbol
-              ios_icon_name="trash"
-              android_material_icon_name="delete"
-              size={24}
-              color="#FF3B30"
-            />
+          <TouchableOpacity onPress={onDelete} style={styles.headerButton}>
+            <Text style={[styles.headerButtonText, { color: "#ff3b30" }]}>🗑</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Top info card (matches build 33 vibe) */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <IconSymbol
-              ios_icon_name="flag.checkered"
-              android_material_icon_name="sports-score"
-              size={20}
-              color={colors.primary}
-            />
-            <Text style={styles.infoText}>{track.name}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <IconSymbol
-              ios_icon_name="calendar"
-              android_material_icon_name="calendar-today"
-              size={20}
-              color={colors.primary}
-            />
-            <Text style={styles.infoText}>{getDisplayDate(reading)}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <IconSymbol
-              ios_icon_name="clock"
-              android_material_icon_name="access-time"
-              size={20}
-              color={colors.primary}
-            />
-            <Text style={styles.infoText}>{getDisplayTime(reading)}</Text>
-          </View>
-
-          {(reading as any).session ? (
-            <View style={styles.infoRow}>
-              <IconSymbol
-                ios_icon_name="list.bullet"
-                android_material_icon_name="list"
-                size={20}
-                color={colors.primary}
-              />
-              <Text style={styles.infoText}>Session: {(reading as any).session}</Text>
-            </View>
-          ) : null}
-
-          {(reading as any).pair ? (
-            <View style={styles.infoRow}>
-              <IconSymbol
-                ios_icon_name="person.2"
-                android_material_icon_name="group"
-                size={20}
-                color={colors.primary}
-              />
-              <Text style={styles.infoText}>Pair: {(reading as any).pair}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Weather snapshot (you want this back) */}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {renderInfoCard(reading)}
         {renderWeatherSnapshot(reading)}
 
-        {/* Full lane cards */}
-        {renderLaneData((reading as any).leftLane, "Left Lane")}
-        {renderLaneData((reading as any).rightLane, "Right Lane")}
+        {renderLaneData(leftLane, "Left Lane")}
+        {renderLaneData(rightLane, "Right Lane")}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function getStyles(colors: ReturnType<typeof useThemeColors>) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      justifyContent: "center",
-      marginRight: 8,
-    },
-    headerTitle: {
-      flex: 1,
-      fontSize: 24,
-      fontWeight: "bold",
-      color: colors.text,
-    },
-    headerActions: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    iconButton: {
-      width: 40,
-      height: 40,
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    content: {
-      flex: 1,
-    },
-    contentContainer: {
-      padding: 20,
-      paddingBottom: 140,
-    },
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 32 },
 
-    // Top info card
-    infoCard: {
-      backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 16,
-      marginBottom: 16,
-      gap: 12,
-    },
-    infoRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-    },
-    infoText: {
-      fontSize: 18,
-      color: colors.text,
-      fontWeight: "500",
-    },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  headerButtonText: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+  },
 
-    // Cards (Weather + Lanes)
-    laneSection: {
-      backgroundColor: colors.card,
-      borderRadius: 14,
-      padding: 16,
-      marginBottom: 16,
-    },
-    laneTitle: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: colors.text,
-      marginBottom: 12,
-    },
+  infoCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    backgroundColor: "#ffffff",
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
+  },
+  infoIcon: { fontSize: 18 },
+  infoText: { fontSize: 16 },
 
-    dataRow: {
-      flexDirection: "row",
-      gap: 16,
-      marginBottom: 12,
-    },
-    dataItem: {
-      flex: 1,
-    },
-    dataItemFull: {
-      flex: 1,
-    },
-    dataLabel: {
-      fontSize: 14,
-      color: colors.textSecondary ?? "#777",
-      marginBottom: 6,
-    },
-    dataValue: {
-      fontSize: 26,
-      fontWeight: "700",
-      color: colors.text,
-    },
-
-    notesSection: {
-      marginTop: 8,
-      paddingTop: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border ?? "rgba(0,0,0,0.12)",
-    },
-    notesText: {
-      fontSize: 16,
-      color: colors.text,
-      marginTop: 6,
-      lineHeight: 22,
-    },
-
-    laneImage: {
-      width: "100%",
-      height: 220,
-      borderRadius: 12,
-      marginTop: 12,
-      backgroundColor: "rgba(0,0,0,0.06)",
-    },
-  });
-}
+  laneSection: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    backgroundColor: "#ffffff",
+  },
+  laneTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginBottom: 16,
+  },
+  dataRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  dataItem: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  dataLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+    fontWeight: "500",
+    color: "#666",
+  },
+  dataValue: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111",
+  },
+  notesSection: {
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e5e5",
+  },
+  notesText: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+    color: "#111",
+  },
+  laneImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+});
