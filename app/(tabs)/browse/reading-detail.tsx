@@ -406,6 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
+
   sectionTitle: { fontSize: 22, fontWeight: "800", marginBottom: 12 },
 
   dataRow: { flexDirection: "row", gap: 14, marginBottom: 12 },
