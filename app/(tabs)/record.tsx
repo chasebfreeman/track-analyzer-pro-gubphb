@@ -1,6 +1,6 @@
 // app/(tabs)/record.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,20 +16,128 @@ import {
   InputAccessoryView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useFocusEffect, Stack } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect, Stack, useRouter } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Track, LaneReading, TrackReading } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 import * as ImagePicker from 'expo-image-picker';
 
+type WeatherLive = {
+  inputs: {
+    tempF: number;
+    humidityPct: number;
+    absPressureInHg: number;
+    uvIndex: number; // ✅ Davis UV
+  };
+  display: {
+    ts: string;
+    adr: number;
+    correction: number;
+  };
+};
 
+async function fetchEliteTrackWeatherSnapshot() {
+  const res = await fetch('https://elitetrackweather.com/api/live', {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!res.ok) throw new Error(`Weather fetch failed: ${res.status}`);
+
+  const json = (await res.json()) as WeatherLive;
+
+  return {
+    weather_ts: json.display.ts,
+    temp_f: json.inputs.tempF,
+    humidity_pct: json.inputs.humidityPct,
+    baro_inhg: json.inputs.absPressureInHg,
+    adr: json.display.adr,
+    correction: json.display.correction,
+    davis_uv_index: json.inputs.uvIndex, // ✅ stored separately from lane UV
+  };
+}
 
 const INPUT_ACCESSORY_VIEW_ID = 'uniqueKeyboardAccessoryID';
 
+function getEmptyLaneReading(): LaneReading {
+  return {
+    trackTemp: '',
+    uvIndex: '', // manual per-lane UV
+    kegSL: '',
+    kegOut: '',
+    grippoSL: '',
+    grippoOut: '',
+    shine: '',
+    notes: '',
+    imageUri: undefined,
+  };
+}
+
+// ✅ Track-local forever: best-effort timezone
+const getDeviceTimeZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+};
+
+// ✅ Get YYYY-MM-DD for a specific timezone from a timestamp (safe)
+const trackDateString = (ms: number, timeZone: string) => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(ms));
+
+    const y = parts.find((p) => p.type === 'year')?.value ?? '0000';
+    const m = parts.find((p) => p.type === 'month')?.value ?? '00';
+    const d = parts.find((p) => p.type === 'day')?.value ?? '00';
+
+    return `${y}-${m}-${d}`;
+  } catch {
+    const d = new Date(ms);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+};
+
+// ✅ Track-local time string from timestamp + IANA timezone (no seconds)
+const trackTimeString = (ms: number, timeZone: string) => {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(ms));
+  } catch {
+    const d = new Date(ms);
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${hours}:${minutes} ${ampm}`;
+  }
+};
+
 export default function RecordScreen() {
   const colors = useThemeColors();
-  const params = useLocalSearchParams();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ editReadingId?: string; trackId?: string }>();
+
+  const editReadingId =
+    typeof params.editReadingId === 'string' && params.editReadingId.length > 0
+      ? params.editReadingId
+      : null;
+
+  const isEditing = useMemo(() => !!editReadingId, [editReadingId]);
+  const hasHydratedRef = useRef(false);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
@@ -40,96 +148,23 @@ export default function RecordScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
 
-  // NEW: image action modal
+  // image action modal
   const [showImageActions, setShowImageActions] = useState(false);
   const [imageLaneTarget, setImageLaneTarget] = useState<'left' | 'right' | null>(null);
 
-  function getEmptyLaneReading(): LaneReading {
-    return {
-      trackTemp: '',
-      uvIndex: '',
-      kegSL: '',
-      kegOut: '',
-      grippoSL: '',
-      grippoOut: '',
-      shine: '',
-      notes: '',
-      imageUri: undefined,
-    };
-  }
-
-
-  // ✅ Track-local forever: best-effort timezone
-  const getDeviceTimeZone = () => {
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    } catch {
-      return 'UTC';
-    }
-  };
-
-  // ✅ Get YYYY-MM-DD for a specific timezone from a timestamp (safe)
-  const trackDateString = (ms: number, timeZone: string) => {
-    try {
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      }).formatToParts(new Date(ms));
-
-      const y = parts.find((p) => p.type === 'year')?.value ?? '0000';
-      const m = parts.find((p) => p.type === 'month')?.value ?? '00';
-      const d = parts.find((p) => p.type === 'day')?.value ?? '00';
-
-      return `${y}-${m}-${d}`;
-    } catch {
-      const d = new Date(ms);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-  };
-
-  // ✅ Track-local time string from timestamp + IANA timezone (no seconds)
-  const trackTimeString = (ms: number, timeZone: string) => {
-    try {
-      return new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      }).format(new Date(ms));
-    } catch {
-      const d = new Date(ms);
-      let hours = d.getHours();
-      const minutes = String(d.getMinutes()).padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      return `${hours}:${minutes} ${ampm}`;
-    }
-  };
-
   const loadTracks = useCallback(async () => {
-    console.log('Loading tracks for record screen');
     const allTracks = await SupabaseStorageService.getAllTracks();
     const sortedTracks = allTracks.sort((a, b) => a.name.localeCompare(b.name));
     setTracks(sortedTracks);
 
     if (params.trackId && typeof params.trackId === 'string') {
       const track = sortedTracks.find((t) => t.id === params.trackId);
-      if (track) {
-        console.log('Auto-selecting track from params:', track.name);
-        setSelectedTrack(track);
-      }
+      if (track) setSelectedTrack(track);
     }
   }, [params.trackId]);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('Record screen focused');
       loadTracks();
     }, [loadTracks])
   );
@@ -138,12 +173,37 @@ export default function RecordScreen() {
     loadTracks();
   }, [loadTracks]);
 
+  // hydrate edit mode
+  useEffect(() => {
+    (async () => {
+      if (!editReadingId) {
+        hasHydratedRef.current = false;
+        return;
+      }
+      if (hasHydratedRef.current) return;
+
+      const existing = await SupabaseStorageService.getReadingById(editReadingId);
+      if (!existing) return;
+
+      // pick track (if not already selected)
+      const allTracks = await SupabaseStorageService.getAllTracks();
+      const t = allTracks.find((x) => x.id === existing.trackId) ?? null;
+      if (t) setSelectedTrack(t);
+
+      setSession(existing.session ?? '');
+      setPair(existing.pair ?? '');
+      setLeftLane(existing.leftLane ?? getEmptyLaneReading());
+      setRightLane(existing.rightLane ?? getEmptyLaneReading());
+
+      hasHydratedRef.current = true;
+    })();
+  }, [editReadingId]);
+
   const setLaneImage = (lane: 'left' | 'right', uri: string) => {
     if (lane === 'left') setLeftLane({ ...leftLane, imageUri: uri });
     else setRightLane({ ...rightLane, imageUri: uri });
   };
 
-  // NEW: open actions modal (camera or library)
   const openImageActions = (lane: 'left' | 'right') => {
     setImageLaneTarget(lane);
     setShowImageActions(true);
@@ -153,8 +213,6 @@ export default function RecordScreen() {
     const lane = imageLaneTarget;
     setShowImageActions(false);
     if (!lane) return;
-
-    console.log('Pick image from library for', lane);
 
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
@@ -169,7 +227,6 @@ export default function RecordScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      console.log('Image selected:', result.assets[0].uri);
       setLaneImage(lane, result.assets[0].uri);
     }
   };
@@ -178,8 +235,6 @@ export default function RecordScreen() {
     const lane = imageLaneTarget;
     setShowImageActions(false);
     if (!lane) return;
-
-    console.log('Take photo for', lane);
 
     const camPerm = await ImagePicker.requestCameraPermissionsAsync();
     if (!camPerm.granted) {
@@ -193,7 +248,6 @@ export default function RecordScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      console.log('Photo captured:', result.assets[0].uri);
       setLaneImage(lane, result.assets[0].uri);
     }
   };
@@ -208,108 +262,185 @@ export default function RecordScreen() {
   };
 
   const handleSaveReading = async () => {
-  console.log('User tapped Save Reading button');
-
-  if (!selectedTrack) {
-    Alert.alert('Error', 'Please select a track');
-    return;
-  }
-
-  setIsSaving(true);
-
-  try {
-    const ms = Date.now();
-
-    const timeZone = getDeviceTimeZone();
-    const trackDate = trackDateString(ms, timeZone);
-    const time12Hour = trackTimeString(ms, timeZone);
-
-    const y = Number(trackDate.slice(0, 4));
-    const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
-
-    const reading: Omit<TrackReading, 'id'> = {
-      trackId: selectedTrack.id,
-      date: trackDate,
-      time: time12Hour,
-      timestamp: ms,
-      year,
-      session: session || undefined,
-      pair: pair || undefined,
-      leftLane,
-      rightLane,
-      timeZone,
-      trackDate,
-    };
-
-    console.log('Saving new reading:', reading);
-
-    // 1) create reading row first
-    const savedReading = await SupabaseStorageService.createReading(reading);
-
-    if (!savedReading) {
-      Alert.alert('Error', 'Failed to save reading');
+    if (!selectedTrack) {
+      Alert.alert('Error', 'Please select a track');
       return;
     }
 
-    console.log('Saved reading id:', savedReading.id);
-    console.log('Left imageUri:', leftLane.imageUri);
-    console.log('Right imageUri:', rightLane.imageUri);
+    setIsSaving(true);
 
-    // 2) upload photos (if any)
-    const leftPath = leftLane.imageUri
-      ? await SupabaseStorageService.uploadImage(leftLane.imageUri, savedReading.id, 'left')
-      : null;
+    try {
+      // 🔒 If editing, fetch existing reading once (for preserving timestamp + weather)
+      let existing: TrackReading | null = null;
+      if (editReadingId) {
+        existing = await SupabaseStorageService.getReadingById(editReadingId);
+        if (!existing) {
+          Alert.alert('Error', 'Could not load existing reading');
+          return;
+        }
+      }
 
-    const rightPath = rightLane.imageUri
-      ? await SupabaseStorageService.uploadImage(rightLane.imageUri, savedReading.id, 'right')
-      : null;
+      // default new
+      let ms = Date.now();
+      let timeZone = getDeviceTimeZone();
+      let trackDate = trackDateString(ms, timeZone);
+      let time12Hour = trackTimeString(ms, timeZone);
 
-    console.log('Uploaded paths:', { leftPath, rightPath });
+      let y = Number(trackDate.slice(0, 4));
+      let year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
 
-    // 3) store paths on the reading row
-    if (leftPath || rightPath) {
-      const ok = await SupabaseStorageService.updateReadingPhotoPaths({
-        readingId: savedReading.id,
-        leftPhotoPath: leftPath ?? undefined,
-        rightPhotoPath: rightPath ?? undefined,
-      });
+      // preserve original identity fields on edit
+      if (existing) {
+        ms = existing.timestamp;
+        timeZone = existing.timeZone ?? timeZone;
+        trackDate = existing.trackDate ?? existing.date ?? trackDate;
+        time12Hour = existing.time ?? time12Hour;
+        year = existing.year ?? year;
+      }
 
-      console.log('updateReadingPhotoPaths ok:', ok);
-    }
+      // weather
+      let weather: {
+        weather_ts?: string;
+        temp_f?: number;
+        humidity_pct?: number;
+        baro_inhg?: number;
+        adr?: number;
+        correction?: number;
+        davis_uv_index?: number;
+      } | null = null;
 
-    // 4) success UI + reset form
-    console.log('Reading saved successfully');
-    Alert.alert('Success', 'Reading saved successfully', [
-      {
-        text: 'OK',
-        onPress: () => {
-          setLeftLane(getEmptyLaneReading());
-          setRightLane(getEmptyLaneReading());
-          setSession('');
-          setPair('');
-          Keyboard.dismiss();
+      if (existing) {
+        // preserve snapshot on edit
+        weather = {
+          weather_ts: existing.weather_ts,
+          temp_f: existing.temp_f,
+          humidity_pct: existing.humidity_pct,
+          baro_inhg: existing.baro_inhg,
+          adr: existing.adr,
+          correction: existing.correction,
+          davis_uv_index: existing.davis_uv_index,
+        };
+      } else {
+        // new reading: fetch live
+        try {
+          weather = await fetchEliteTrackWeatherSnapshot();
+        } catch (e) {
+          console.warn('Weather snapshot failed (saving without weather):', e);
+        }
+      }
+
+      const base: Omit<TrackReading, 'id'> = {
+        trackId: selectedTrack.id,
+        date: trackDate,
+        time: time12Hour,
+        timestamp: ms,
+        year,
+        session: session || undefined,
+        pair: pair || undefined,
+        leftLane,
+        rightLane,
+        timeZone,
+        trackDate,
+        ...(weather
+          ? {
+              temp_f: weather.temp_f,
+              humidity_pct: weather.humidity_pct,
+              baro_inhg: weather.baro_inhg,
+              adr: weather.adr,
+              correction: weather.correction,
+              weather_ts: weather.weather_ts,
+              davis_uv_index: weather.davis_uv_index,
+            }
+          : {}),
+      };
+
+      // 1) create/update row
+      let savedReadingId: string | null = null;
+
+      if (editReadingId) {
+        const ok = await SupabaseStorageService.updateReading(editReadingId, {
+          // ✅ only update editable fields; do NOT overwrite weather
+          session: base.session,
+          pair: base.pair,
+          leftLane: base.leftLane,
+          rightLane: base.rightLane,
+        });
+
+        if (!ok) {
+          Alert.alert('Error', 'Failed to update reading');
+          return;
+        }
+
+        savedReadingId = editReadingId; // ✅ FIX: updateReading returns boolean
+      } else {
+        const created = await SupabaseStorageService.createReading(base);
+        if (!created) {
+          Alert.alert('Error', 'Failed to save reading');
+          return;
+        }
+        savedReadingId = created.id;
+      }
+
+      if (!savedReadingId) {
+        Alert.alert('Error', 'Failed to determine saved reading id');
+        return;
+      }
+
+      // 2) upload photos (if any)
+      const isLocalFileUri = (uri?: string) =>
+        !!uri &&
+        (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://'));
+
+      const leftPath = isLocalFileUri(leftLane.imageUri)
+        ? await SupabaseStorageService.uploadImage(leftLane.imageUri!, savedReadingId, 'left')
+        : null;
+
+      const rightPath = isLocalFileUri(rightLane.imageUri)
+        ? await SupabaseStorageService.uploadImage(rightLane.imageUri!, savedReadingId, 'right')
+        : null;
+
+      // 3) store photo paths
+      if (leftPath || rightPath) {
+        await SupabaseStorageService.updateReadingPhotoPaths({
+          readingId: savedReadingId,
+          leftPhotoPath: leftPath ?? undefined,
+          rightPhotoPath: rightPath ?? undefined,
+        });
+      }
+
+      Alert.alert('Success', isEditing ? 'Reading updated' : 'Reading saved', [
+        {
+          text: 'OK',
+          onPress: () => {
+            if (!isEditing) {
+              setLeftLane(getEmptyLaneReading());
+              setRightLane(getEmptyLaneReading());
+              setSession('');
+              setPair('');
+            }
+            Keyboard.dismiss();
+            if (isEditing) router.back();
+          },
         },
-      },
-    ]);
-  } catch (e) {
-    console.error('Save reading exception:', e);
-    Alert.alert('Error', 'Failed to save reading');
-  } finally {
-    setIsSaving(false);
-  }
-};
+      ]);
+    } catch (e) {
+      console.error('Save reading exception:', e);
+      Alert.alert('Error', 'Failed to save reading');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleCancel = () => {
-    console.log('User tapped Cancel button');
     setLeftLane(getEmptyLaneReading());
     setRightLane(getEmptyLaneReading());
     setSession('');
     setPair('');
     Keyboard.dismiss();
+    router.back();
   };
 
   const handleTrackSelect = (track: Track) => {
-    console.log('User selected track:', track.name);
     setSelectedTrack(track);
     setShowTrackDropdown(false);
   };
@@ -341,7 +472,7 @@ export default function RecordScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>UV Index</Text>
+            <Text style={styles.inputLabel}>UV Index (Manual)</Text>
             <TextInput
               style={styles.input}
               value={lane.uvIndex}
@@ -468,7 +599,7 @@ export default function RecordScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Record Reading</Text>
+          <Text style={styles.headerTitle}>{isEditing ? 'Edit Reading' : 'Record Reading'}</Text>
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -476,13 +607,18 @@ export default function RecordScreen() {
             <Text style={styles.sectionTitle}>Select Track</Text>
             <TouchableOpacity
               style={styles.dropdownButton}
-              onPress={() => {
-                console.log('User tapped track dropdown');
-                setShowTrackDropdown(true);
-              }}
+              onPress={() => setShowTrackDropdown(true)}
+              disabled={isEditing} // lock track on edit
             >
-              <Text style={styles.dropdownButtonText}>{selectedTrack ? selectedTrack.name : 'Choose a track...'}</Text>
-              <IconSymbol ios_icon_name="chevron.down" android_material_icon_name="arrow-drop-down" size={20} color={colors.text} />
+              <Text style={styles.dropdownButtonText}>
+                {selectedTrack ? selectedTrack.name : 'Choose a track...'}
+              </Text>
+              <IconSymbol
+                ios_icon_name="chevron.down"
+                android_material_icon_name="arrow-drop-down"
+                size={20}
+                color={colors.text}
+              />
             </TouchableOpacity>
           </View>
 
@@ -533,7 +669,7 @@ export default function RecordScreen() {
                   onPress={handleSaveReading}
                   disabled={isSaving}
                 >
-                  <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save Reading'}</Text>
+                  <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : isEditing ? 'Update' : 'Save Reading'}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -543,7 +679,7 @@ export default function RecordScreen() {
         {/* Track dropdown modal */}
         <Modal
           visible={showTrackDropdown}
-          transparent={true}
+          transparent
           animationType="fade"
           onRequestClose={() => setShowTrackDropdown(false)}
         >
@@ -575,10 +711,10 @@ export default function RecordScreen() {
           </TouchableOpacity>
         </Modal>
 
-        {/* NEW: Image actions modal */}
+        {/* Image actions modal */}
         <Modal
           visible={showImageActions}
-          transparent={true}
+          transparent
           animationType="fade"
           onRequestClose={() => setShowImageActions(false)}
         >
@@ -616,13 +752,7 @@ export default function RecordScreen() {
         <InputAccessoryView nativeID={INPUT_ACCESSORY_VIEW_ID}>
           <View style={styles.keyboardAccessory}>
             <View style={{ flex: 1 }} />
-            <TouchableOpacity
-              style={styles.doneButton}
-              onPress={() => {
-                console.log('User tapped Done button on keyboard');
-                Keyboard.dismiss();
-              }}
-            >
+            <TouchableOpacity style={styles.doneButton} onPress={() => Keyboard.dismiss()}>
               <Text style={styles.doneButtonText}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -634,35 +764,14 @@ export default function RecordScreen() {
 
 function getStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    header: {
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-    },
-    headerTitle: {
-      fontSize: 32,
-      fontWeight: 'bold',
-      color: colors.text,
-    },
-    content: {
-      flex: 1,
-    },
-    contentContainer: {
-      padding: 20,
-      paddingBottom: 140,
-    },
-    trackSelector: {
-      marginBottom: 24,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: colors.text,
-      marginBottom: 12,
-    },
+    container: { flex: 1, backgroundColor: colors.background },
+    header: { paddingHorizontal: 20, paddingVertical: 16 },
+    headerTitle: { fontSize: 32, fontWeight: 'bold', color: colors.text },
+    content: { flex: 1 },
+    contentContainer: { padding: 20, paddingBottom: 140 },
+
+    trackSelector: { marginBottom: 24 },
+    sectionTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 12 },
     dropdownButton: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -673,11 +782,8 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    dropdownButtonText: {
-      fontSize: 16,
-      color: colors.text,
-      fontWeight: '500',
-    },
+    dropdownButtonText: { fontSize: 16, color: colors.text, fontWeight: '500' },
+
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -700,14 +806,8 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    dropdownTitle: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: colors.text,
-    },
-    dropdownList: {
-      maxHeight: 400,
-    },
+    dropdownTitle: { fontSize: 20, fontWeight: '600', color: colors.text },
+    dropdownList: { maxHeight: 400 },
     dropdownItem: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -716,49 +816,17 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    dropdownItemActive: {
-      backgroundColor: colors.background,
-    },
-    dropdownItemText: {
-      fontSize: 16,
-      color: colors.text,
-    },
-    dropdownItemTextActive: {
-      fontWeight: '600',
-      color: colors.primary,
-    },
-    sessionPairSection: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 16,
-    },
-    laneSection: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 16,
-    },
-    laneTitle: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: colors.text,
-      marginBottom: 16,
-    },
-    inputRow: {
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 12,
-    },
-    inputGroup: {
-      flex: 1,
-    },
-    inputLabel: {
-      fontSize: 14,
-      fontWeight: '500',
-      color: colors.textSecondary,
-      marginBottom: 6,
-    },
+    dropdownItemActive: { backgroundColor: colors.background },
+    dropdownItemText: { fontSize: 16, color: colors.text },
+    dropdownItemTextActive: { fontWeight: '600', color: colors.primary },
+
+    sessionPairSection: { backgroundColor: colors.card, borderRadius: 12, padding: 16, marginBottom: 16 },
+    laneSection: { backgroundColor: colors.card, borderRadius: 12, padding: 16, marginBottom: 16 },
+    laneTitle: { fontSize: 20, fontWeight: '600', color: colors.text, marginBottom: 16 },
+
+    inputRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+    inputGroup: { flex: 1 },
+    inputLabel: { fontSize: 14, fontWeight: '500', color: colors.textSecondary, marginBottom: 6 },
     input: {
       backgroundColor: colors.background,
       borderRadius: 8,
@@ -768,10 +836,8 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    notesInput: {
-      height: 80,
-      textAlignVertical: 'top',
-    },
+    notesInput: { height: 80, textAlignVertical: 'top' },
+
     imageButton: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -783,24 +849,10 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    imageButtonText: {
-      fontSize: 16,
-      color: colors.primary,
-      marginLeft: 8,
-      fontWeight: '500',
-    },
-    previewImage: {
-      width: '100%',
-      height: 200,
-      borderRadius: 8,
-      marginTop: 12,
-    },
-    actions: {
-      flexDirection: 'row',
-      gap: 12,
-      marginTop: 24,
-      marginBottom: 40,
-    },
+    imageButtonText: { fontSize: 16, color: colors.primary, marginLeft: 8, fontWeight: '500' },
+    previewImage: { width: '100%', height: 200, borderRadius: 8, marginTop: 12 },
+
+    actions: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 40 },
     cancelButton: {
       flex: 1,
       backgroundColor: colors.card,
@@ -810,26 +862,11 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    cancelButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.text,
-    },
-    saveButton: {
-      flex: 1,
-      backgroundColor: colors.primary,
-      borderRadius: 12,
-      padding: 16,
-      alignItems: 'center',
-    },
-    saveButtonDisabled: {
-      opacity: 0.6,
-    },
-    saveButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#FFFFFF',
-    },
+    cancelButtonText: { fontSize: 16, fontWeight: '600', color: colors.text },
+    saveButton: { flex: 1, backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center' },
+    saveButtonDisabled: { opacity: 0.6 },
+    saveButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+
     keyboardAccessory: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -840,29 +877,10 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       paddingVertical: 12,
       height: 50,
     },
-    doneButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      backgroundColor: colors.primary,
-      borderRadius: 8,
-    },
-    doneButtonText: {
-      fontSize: 17,
-      fontWeight: '600',
-      color: '#FFFFFF',
-    },
+    doneButton: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.primary, borderRadius: 8 },
+    doneButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
 
-    // NEW: action rows
-    actionRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 12,
-      gap: 12,
-    },
-    actionText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.text,
-    },
+    actionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
+    actionText: { fontSize: 16, fontWeight: '600', color: colors.text },
   });
 }
