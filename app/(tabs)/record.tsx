@@ -28,23 +28,28 @@ type WeatherLive = {
     tempF: number;
     humidityPct: number;
     absPressureInHg: number;
-    uvIndex: number; // ✅ Davis UV
+    uvIndex?: number; // ✅ add
   };
   display: {
     ts: string;
     adr: number;
     correction: number;
+    uvIndex?: number; // ✅ add (just in case)
   };
 };
 
 async function fetchEliteTrackWeatherSnapshot() {
-  const res = await fetch('https://elitetrackweather.com/api/live', {
-    headers: { Accept: 'application/json' },
+  const res = await fetch("https://elitetrackweather.com/api/live", {
+    headers: { Accept: "application/json" },
   });
 
   if (!res.ok) throw new Error(`Weather fetch failed: ${res.status}`);
 
   const json = (await res.json()) as WeatherLive;
+
+  const uv =
+    (typeof json.inputs.uvIndex === "number" ? json.inputs.uvIndex : undefined) ??
+    (typeof json.display.uvIndex === "number" ? json.display.uvIndex : undefined);
 
   return {
     weather_ts: json.display.ts,
@@ -53,7 +58,9 @@ async function fetchEliteTrackWeatherSnapshot() {
     baro_inhg: json.inputs.absPressureInHg,
     adr: json.display.adr,
     correction: json.display.correction,
-    davis_uv_index: json.inputs.uvIndex, // ✅ stored separately from lane UV
+
+    // ✅ THIS is the missing piece
+    davis_uv_index: uv,
   };
 }
 
@@ -341,17 +348,17 @@ export default function RecordScreen() {
         rightLane,
         timeZone,
         trackDate,
-        ...(weather
-          ? {
-              temp_f: weather.temp_f,
-              humidity_pct: weather.humidity_pct,
-              baro_inhg: weather.baro_inhg,
-              adr: weather.adr,
-              correction: weather.correction,
-              weather_ts: weather.weather_ts,
-              davis_uv_index: weather.davis_uv_index,
-            }
-          : {}),
+      ...(weather
+  ? {
+      temp_f: weather.temp_f,
+      humidity_pct: weather.humidity_pct,
+      baro_inhg: weather.baro_inhg,
+      adr: weather.adr,
+      correction: weather.correction,
+      weather_ts: weather.weather_ts,
+      davis_uv_index: weather.davis_uv_index, // ✅ add
+    }
+  : {}),
       };
 
       // 1) create/update row
