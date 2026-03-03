@@ -1,6 +1,6 @@
 export interface LaneReading {
   trackTemp: string;
-  uvIndex: string;
+  uvIndex: string; // ✅ manual per-lane UV
   kegSL: string;
   kegOut: string;
   grippoSL: string;
@@ -29,16 +29,25 @@ export interface TrackReading {
   leftLane: LaneReading;
   rightLane: LaneReading;
 
-// ✅ photo paths stored in DB (private storage object paths)
+  // ✅ photo paths stored in DB (private storage object paths)
   left_photo_path?: string | null;
   right_photo_path?: string | null;
 
   // ✅ NEW (track-local forever)
   timeZone?: string;
   trackDate?: string;
+
+  // ✅ Weather snapshot (applies to whole reading)
+  temp_f?: number;
+  humidity_pct?: number;
+  baro_inhg?: number;
+  adr?: number;
+  correction?: number;
+  weather_ts?: string;
+
+  // ✅ Davis UV (from your weather endpoint; NOT the manual lane UV)
+  davis_uv_index?: number;
 }
-
-
 
 export interface Track {
   id: string;
