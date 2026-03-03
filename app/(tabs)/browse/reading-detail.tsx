@@ -1,15 +1,7 @@
 // app/(tabs)/browse/reading-detail.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
@@ -86,23 +78,17 @@ export default function ReadingDetailScreen() {
 
     const success = await SupabaseStorageService.deleteReading(reading.id);
     if (success) {
-      Alert.alert('Success', 'Reading deleted successfully', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Alert.alert('Success', 'Reading deleted successfully', [{ text: 'OK', onPress: () => router.back() }]);
     } else {
       Alert.alert('Error', 'Failed to delete reading');
     }
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Reading',
-      'Are you sure you want to delete this reading? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: deleteReading },
-      ]
-    );
+    Alert.alert('Delete Reading', 'Are you sure you want to delete this reading? This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: deleteReading },
+    ]);
   };
 
   const formatTimeInTimeZone = (ms: number, timeZone: string) => {
@@ -196,18 +182,22 @@ export default function ReadingDetailScreen() {
             <Text style={styles.dataLabel}>ADR</Text>
             <Text style={styles.dataValue}>{fmtNum(r.adr, 2)}</Text>
           </View>
-<Text style={styles.dataLabel}>Davis UV</Text>
-<Text style={styles.dataValue}>
-  {r.davis_uv_index === undefined ? "N/A" : fmtNum(r.davis_uv_index, 0)}
-</Text>
- 
+
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Davis UV</Text>
+            <Text style={styles.dataValue}>{r.davis_uv_index === undefined ? 'N/A' : fmtNum(r.davis_uv_index, 0)}</Text>
+          </View>
+        </View>
+
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Timestamp</Text>
+            <Text style={styles.dataLabel}>Snapshot Time</Text>
             <Text style={styles.dataValue} numberOfLines={1}>
               {fmtTs(r.weather_ts)}
             </Text>
           </View>
+
+          <View style={styles.dataItem} />
         </View>
       </View>
     );
