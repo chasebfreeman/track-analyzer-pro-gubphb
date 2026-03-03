@@ -196,13 +196,11 @@ export default function ReadingDetailScreen() {
             <Text style={styles.dataLabel}>ADR</Text>
             <Text style={styles.dataValue}>{fmtNum(r.adr, 2)}</Text>
           </View>
-
-          <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Davis UV</Text>
-            <Text style={styles.dataValue}>{fmtNum(r.davis_uv_index, 1)}</Text>
-          </View>
-        </View>
-
+<Text style={styles.dataLabel}>Davis UV</Text>
+<Text style={styles.dataValue}>
+  {r.davis_uv_index === undefined ? "N/A" : fmtNum(r.davis_uv_index, 0)}
+</Text>
+ 
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Timestamp</Text>
