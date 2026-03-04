@@ -1,6 +1,8 @@
+// types/TrackData.ts
+
 export interface LaneReading {
   trackTemp: string;
-  uvIndex: string; // ✅ manual per-lane UV
+  uvIndex: string; // manual lane UV
   kegSL: string;
   kegOut: string;
   grippoSL: string;
@@ -33,19 +35,19 @@ export interface TrackReading {
   left_photo_path?: string | null;
   right_photo_path?: string | null;
 
-  // ✅ NEW (track-local forever)
+  // ✅ track-local forever
   timeZone?: string;
   trackDate?: string;
 
   // ✅ Weather snapshot (applies to whole reading)
+  weather_ts?: string;
   temp_f?: number;
   humidity_pct?: number;
   baro_inhg?: number;
   adr?: number;
   correction?: number;
-  weather_ts?: string;
 
-  // ✅ Davis UV (from your weather endpoint; NOT the manual lane UV)
+  // ✅ Davis UV (from weather station)
   davis_uv_index?: number;
 }
 
@@ -57,6 +59,6 @@ export interface Track {
 }
 
 export interface DayReadings {
-  date: string; // this is your grouping key (use trackDate style YYYY-MM-DD)
+  date: string; // grouping key YYYY-MM-DD
   readings: TrackReading[];
 }

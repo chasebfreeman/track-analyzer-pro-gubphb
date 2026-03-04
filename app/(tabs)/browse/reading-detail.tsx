@@ -27,7 +27,7 @@ export default function ReadingDetailScreen() {
     const foundTrack = tracks.find((t) => t.id === params.trackId) ?? null;
     setTrack(foundTrack);
 
-    const foundReading = await SupabaseStorageService.getReadingById(params.readingId);
+    const foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
     setReading(foundReading ?? null);
   }, [params.readingId, params.trackId]);
 
@@ -93,12 +93,7 @@ export default function ReadingDetailScreen() {
 
   const formatTimeInTimeZone = (ms: number, timeZone: string) => {
     try {
-      return new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      }).format(new Date(ms));
+      return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(ms));
     } catch {
       const d = new Date(ms);
       let hours = d.getHours();

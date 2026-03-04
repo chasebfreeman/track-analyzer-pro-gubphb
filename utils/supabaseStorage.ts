@@ -30,9 +30,7 @@ export class SupabaseStorageService {
       return `${y}-${m}-${d}`;
     } catch {
       const d = new Date(ms);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-        d.getDate()
-      ).padStart(2, '0')}`;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
   }
 
@@ -55,10 +53,7 @@ export class SupabaseStorageService {
   static async getAllTracks(): Promise<Track[]> {
     if (!isSupabaseConfigured()) return [];
 
-    const { data, error } = await supabase
-      .from('tracks')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('tracks').select('*').order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching tracks:', error);
@@ -80,11 +75,7 @@ export class SupabaseStorageService {
 
     const { data, error } = await supabase
       .from('tracks')
-      .insert({
-        name,
-        location,
-        user_id: userData.user?.id,
-      })
+      .insert({ name, location, user_id: userData.user?.id })
       .select()
       .single();
 
@@ -122,12 +113,7 @@ export class SupabaseStorageService {
   static async getReadingsForTrack(trackId: string, year?: number): Promise<TrackReading[]> {
     if (!isSupabaseConfigured()) return [];
 
-    let query = supabase
-      .from('readings')
-      .select('*')
-      .eq('track_id', trackId)
-      .order('timestamp', { ascending: false });
-
+    let query = supabase.from('readings').select('*').eq('track_id', trackId).order('timestamp', { ascending: false });
     if (year !== undefined) query = query.eq('year', year);
 
     const { data, error } = await query;
@@ -166,13 +152,13 @@ export class SupabaseStorageService {
         timeZone,
         trackDate,
 
-        // ✅ Weather snapshot
+        // weather snapshot
+        weather_ts: reading.weather_ts ?? undefined,
         temp_f: this.safeNumber(reading.temp_f) ?? undefined,
         humidity_pct: this.safeNumber(reading.humidity_pct) ?? undefined,
         baro_inhg: this.safeNumber(reading.baro_inhg) ?? undefined,
         adr: this.safeNumber(reading.adr) ?? undefined,
         correction: this.safeNumber(reading.correction) ?? undefined,
-        weather_ts: reading.weather_ts ?? undefined,
         davis_uv_index: this.safeNumber(reading.davis_uv_index) ?? undefined,
       };
     });
@@ -181,11 +167,7 @@ export class SupabaseStorageService {
   static async getReadingById(readingId: string): Promise<TrackReading | null> {
     if (!isSupabaseConfigured()) return null;
 
-    const { data, error } = await supabase
-      .from('readings')
-      .select('*')
-      .eq('id', readingId)
-      .single();
+    const { data, error } = await supabase.from('readings').select('*').eq('id', readingId).single();
 
     if (error || !data) {
       console.error('Error fetching reading:', error);
@@ -220,13 +202,13 @@ export class SupabaseStorageService {
       timeZone,
       trackDate,
 
-      // ✅ Weather snapshot
+      // weather snapshot
+      weather_ts: data.weather_ts ?? undefined,
       temp_f: this.safeNumber(data.temp_f) ?? undefined,
       humidity_pct: this.safeNumber(data.humidity_pct) ?? undefined,
       baro_inhg: this.safeNumber(data.baro_inhg) ?? undefined,
       adr: this.safeNumber(data.adr) ?? undefined,
       correction: this.safeNumber(data.correction) ?? undefined,
-      weather_ts: data.weather_ts ?? undefined,
       davis_uv_index: this.safeNumber(data.davis_uv_index) ?? undefined,
     };
   }
@@ -253,13 +235,13 @@ export class SupabaseStorageService {
         time_zone: reading.timeZone ?? null,
         track_date: reading.trackDate ?? null,
 
-        // ✅ Weather snapshot
+        // weather snapshot
+        weather_ts: reading.weather_ts ?? null,
         temp_f: reading.temp_f ?? null,
         humidity_pct: reading.humidity_pct ?? null,
         baro_inhg: reading.baro_inhg ?? null,
         adr: reading.adr ?? null,
         correction: reading.correction ?? null,
-        weather_ts: reading.weather_ts ?? null,
         davis_uv_index: reading.davis_uv_index ?? null,
       })
       .select()
@@ -278,7 +260,6 @@ export class SupabaseStorageService {
 
     const updateData: any = {};
 
-    // editable / common fields
     if (updates.date !== undefined) updateData.date = updates.date;
     if (updates.time !== undefined) updateData.time = updates.time;
     if (updates.timestamp !== undefined) updateData.timestamp = Math.trunc(updates.timestamp);
@@ -291,13 +272,13 @@ export class SupabaseStorageService {
     if (updates.timeZone !== undefined) updateData.time_zone = updates.timeZone ?? null;
     if (updates.trackDate !== undefined) updateData.track_date = updates.trackDate ?? null;
 
-    // ✅ weather fields (only if explicitly provided)
+    // weather (only if provided)
+    if (updates.weather_ts !== undefined) updateData.weather_ts = updates.weather_ts;
     if (updates.temp_f !== undefined) updateData.temp_f = updates.temp_f;
     if (updates.humidity_pct !== undefined) updateData.humidity_pct = updates.humidity_pct;
     if (updates.baro_inhg !== undefined) updateData.baro_inhg = updates.baro_inhg;
     if (updates.adr !== undefined) updateData.adr = updates.adr;
     if (updates.correction !== undefined) updateData.correction = updates.correction;
-    if (updates.weather_ts !== undefined) updateData.weather_ts = updates.weather_ts;
     if (updates.davis_uv_index !== undefined) updateData.davis_uv_index = updates.davis_uv_index;
 
     const { error } = await supabase.from('readings').update(updateData).eq('id', readingId);
@@ -330,9 +311,7 @@ export class SupabaseStorageService {
   static async getSignedImageUrl(objectPath: string, expiresInSeconds: number = 3600): Promise<string | null> {
     if (!isSupabaseConfigured()) return null;
 
-    const { data, error } = await supabase.storage
-      .from('reading-photos')
-      .createSignedUrl(objectPath, expiresInSeconds);
+    const { data, error } = await supabase.storage.from('reading-photos').createSignedUrl(objectPath, expiresInSeconds);
 
     if (error) {
       console.error('Error creating signed URL:', error);
@@ -366,9 +345,7 @@ export class SupabaseStorageService {
     const ext = (extMatch?.[1] || 'jpg').toLowerCase();
 
     const contentType =
-      ext === 'png' ? 'image/png' :
-      ext === 'jpeg' || ext === 'jpg' ? 'image/jpeg' :
-      'application/octet-stream';
+      ext === 'png' ? 'image/png' : ext === 'jpeg' || ext === 'jpg' ? 'image/jpeg' : 'application/octet-stream';
 
     const fileName = `${lane}-${Date.now()}.${ext}`;
     const objectPath = `readings/${readingId}/${fileName}`;
@@ -376,9 +353,7 @@ export class SupabaseStorageService {
     const res = await fetch(uri);
     const blob = await res.blob();
 
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(objectPath, blob, { contentType, upsert: true });
+    const { error } = await supabase.storage.from(BUCKET).upload(objectPath, blob, { contentType, upsert: true });
 
     if (error) {
       console.error('Storage upload error:', error);
