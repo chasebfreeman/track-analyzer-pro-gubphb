@@ -1,6 +1,6 @@
 // app/(tabs)/record.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -50,7 +50,6 @@ async function fetchEliteTrackWeatherSnapshot(): Promise<{
   const res = await fetch('https://elitetrackweather.com/api/live', {
     headers: { Accept: 'application/json' },
   });
-
   if (!res.ok) throw new Error(`Weather fetch failed: ${res.status}`);
 
   const json = (await res.json()) as WeatherLive;
@@ -86,7 +85,9 @@ function getEmptyLaneReading(): LaneReading {
   };
 }
 
-// ✅ Track-local forever: best-effort timezone
+const isLocalFileUri = (uri?: string) =>
+  !!uri && (uri.startsWith('file://') || uri.startsWith('content://'));
+
 const getDeviceTimeZone = () => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -95,7 +96,6 @@ const getDeviceTimeZone = () => {
   }
 };
 
-// ✅ Get YYYY-MM-DD for a specific timezone from a timestamp (safe)
 const trackDateString = (ms: number, timeZone: string) => {
   try {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -119,7 +119,6 @@ const trackDateString = (ms: number, timeZone: string) => {
   }
 };
 
-// ✅ Track-local time string from timestamp + IANA timezone (no seconds)
 const trackTimeString = (ms: number, timeZone: string) => {
   try {
     return new Intl.DateTimeFormat('en-US', {
@@ -141,35 +140,46 @@ const trackTimeString = (ms: number, timeZone: string) => {
 
 export default function RecordScreen() {
   const colors = useThemeColors();
-  const params = useLocalSearchParams<{ trackId?: string; editReadingId?: string }>();
   const router = useRouter();
 
+  const params = useLocalSearchParams<{ trackId?: string; editReadingId?: string }>();
   const editReadingId = typeof params.editReadingId === 'string' ? params.editReadingId : null;
   const isEditMode = !!editReadingId;
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+
   const [session, setSession] = useState('');
   const [pair, setPair] = useState('');
   const [leftLane, setLeftLane] = useState<LaneReading>(getEmptyLaneReading());
   const [rightLane, setRightLane] = useState<LaneReading>(getEmptyLaneReading());
-  const [isSaving, setIsSaving] = useState(false);
-  const [showTrackDropdown, setShowTrackDropdown] = useState(false);
 
-  // image action modal
+  // ✅ store the existing reading when editing (for weather + original fields)
+  const [existingReading, setExistingReading] = useState<TrackReading | null>(null);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+
+  // dropdowns/modals
+  const [showTrackDropdown, setShowTrackDropdown] = useState(false);
   const [showImageActions, setShowImageActions] = useState(false);
   const [imageLaneTarget, setImageLaneTarget] = useState<'left' | 'right' | null>(null);
 
   const loadTracks = useCallback(async () => {
     const allTracks = await SupabaseStorageService.getAllTracks();
-    const sortedTracks = allTracks.sort((a, b) => a.name.localeCompare(b.name));
-    setTracks(sortedTracks);
+    const sorted = allTracks.sort((a, b) => a.name.localeCompare(b.name));
+    setTracks(sorted);
 
-    if (params.trackId && typeof params.trackId === 'string') {
-      const t = sortedTracks.find((x) => x.id === params.trackId);
+    // If NOT editing, allow preselect via params.trackId
+    if (!isEditMode && params.trackId && typeof params.trackId === 'string') {
+      const t = sorted.find((x) => x.id === params.trackId) ?? null;
       if (t) setSelectedTrack(t);
     }
-  }, [params.trackId]);
+  }, [params.trackId, isEditMode]);
+
+  useEffect(() => {
+    loadTracks();
+  }, [loadTracks]);
 
   useFocusEffect(
     useCallback(() => {
@@ -177,24 +187,63 @@ export default function RecordScreen() {
     }, [loadTracks])
   );
 
+  // ✅ Load reading into form when editing
   useEffect(() => {
-    loadTracks();
-  }, [loadTracks]);
+    const run = async () => {
+      if (!isEditMode || !editReadingId) return;
+      setIsLoadingEdit(true);
 
-  // Optional: load existing reading into form in edit mode (left out here to keep this file clean)
+      try {
+        const r = await SupabaseStorageService.getReadingById(editReadingId);
+        if (!r) {
+          Alert.alert('Error', 'Could not load reading to edit');
+          router.back();
+          return;
+        }
+
+        setExistingReading(r);
+
+        // Select track (prefer loaded track list if present)
+        const tFromTracks = tracks.find((t) => t.id === r.trackId) ?? null;
+        setSelectedTrack(tFromTracks ?? selectedTrack ?? null);
+
+        // Fill fields
+        setSession(r.session ?? '');
+        setPair(r.pair ?? '');
+        setLeftLane({ ...r.leftLane, imageUri: undefined });
+        setRightLane({ ...r.rightLane, imageUri: undefined });
+
+        // NOTE: we do NOT set timestamp/year/date/time here — those stay on the reading
+        // and remain stored on the backend. (We will not overwrite them on update.)
+      } catch (e) {
+        console.error('Edit load error:', e);
+        Alert.alert('Error', 'Failed to load reading');
+        router.back();
+      } finally {
+        setIsLoadingEdit(false);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, editReadingId, tracks.length]);
+
+  // If we loaded reading before tracks finished, fix selectedTrack once tracks arrive
   useEffect(() => {
-    if (!isEditMode) return;
-    // If you already have edit-mode logic in your repo, keep it there.
-  }, [isEditMode, editReadingId]);
-
-  const setLaneImage = (lane: 'left' | 'right', uri: string) => {
-    if (lane === 'left') setLeftLane({ ...leftLane, imageUri: uri });
-    else setRightLane({ ...rightLane, imageUri: uri });
-  };
+    if (!existingReading) return;
+    if (selectedTrack?.id === existingReading.trackId) return;
+    const t = tracks.find((x) => x.id === existingReading.trackId) ?? null;
+    if (t) setSelectedTrack(t);
+  }, [tracks, existingReading, selectedTrack?.id]);
 
   const openImageActions = (lane: 'left' | 'right') => {
     setImageLaneTarget(lane);
     setShowImageActions(true);
+  };
+
+  const setLaneImage = (lane: 'left' | 'right', uri: string) => {
+    if (lane === 'left') setLeftLane((prev) => ({ ...prev, imageUri: uri }));
+    else setRightLane((prev) => ({ ...prev, imageUri: uri }));
   };
 
   const pickFromLibrary = async () => {
@@ -245,8 +294,13 @@ export default function RecordScreen() {
     setShowImageActions(false);
     if (!lane) return;
 
-    if (lane === 'left') setLeftLane({ ...leftLane, imageUri: undefined });
-    else setRightLane({ ...rightLane, imageUri: undefined });
+    if (lane === 'left') setLeftLane((prev) => ({ ...prev, imageUri: undefined }));
+    else setRightLane((prev) => ({ ...prev, imageUri: undefined }));
+  };
+
+  const handleCancel = () => {
+    Keyboard.dismiss();
+    router.back();
   };
 
   const handleSaveReading = async () => {
@@ -258,8 +312,55 @@ export default function RecordScreen() {
     setIsSaving(true);
 
     try {
-      const ms = Date.now();
+      // ======================================================
+      // EDIT MODE: update existing reading (NO weather refetch)
+      // ======================================================
+      if (isEditMode && editReadingId) {
+        if (!existingReading) {
+          Alert.alert('Error', 'Edit state not ready yet');
+          return;
+        }
 
+        // Only update fields the user edits here (lanes/session/pair/track)
+        const updates: Partial<TrackReading> = {
+          trackId: selectedTrack.id,
+          session: session || undefined,
+          pair: pair || undefined,
+          leftLane: { ...leftLane, imageUri: undefined },
+          rightLane: { ...rightLane, imageUri: undefined },
+        };
+
+        const ok = await SupabaseStorageService.updateReading(editReadingId, updates);
+        if (!ok) {
+          Alert.alert('Error', 'Failed to save changes');
+          return;
+        }
+
+        // Photo uploads ONLY if user picked new local files
+        const leftPath = isLocalFileUri(leftLane.imageUri)
+          ? await SupabaseStorageService.uploadImage(leftLane.imageUri!, editReadingId, 'left')
+          : null;
+
+        const rightPath = isLocalFileUri(rightLane.imageUri)
+          ? await SupabaseStorageService.uploadImage(rightLane.imageUri!, editReadingId, 'right')
+          : null;
+
+        if (leftPath || rightPath) {
+          await SupabaseStorageService.updateReadingPhotoPaths({
+            readingId: editReadingId,
+            leftPhotoPath: leftPath ?? undefined,
+            rightPhotoPath: rightPath ?? undefined,
+          });
+        }
+
+        Alert.alert('Saved', 'Reading updated', [{ text: 'OK', onPress: () => router.back() }]);
+        return;
+      }
+
+      // ==========================================
+      // CREATE MODE: create new reading + weather
+      // ==========================================
+      const ms = Date.now();
       const timeZone = getDeviceTimeZone();
       const trackDate = trackDateString(ms, timeZone);
       const time12Hour = trackTimeString(ms, timeZone);
@@ -267,12 +368,12 @@ export default function RecordScreen() {
       const y = Number(trackDate.slice(0, 4));
       const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
 
-      // ✅ Fetch weather snapshot (non-fatal)
+      // Weather snapshot (best effort)
       let weather: Awaited<ReturnType<typeof fetchEliteTrackWeatherSnapshot>> | null = null;
       try {
         weather = await fetchEliteTrackWeatherSnapshot();
       } catch (e) {
-        console.warn('Weather snapshot failed (saving reading without weather):', e);
+        console.warn('Weather snapshot failed (saving without weather):', e);
       }
 
       const readingToSave: Omit<TrackReading, 'id'> = {
@@ -283,38 +384,36 @@ export default function RecordScreen() {
         year,
         session: session || undefined,
         pair: pair || undefined,
-        leftLane,
-        rightLane,
+        leftLane: { ...leftLane, imageUri: undefined },
+        rightLane: { ...rightLane, imageUri: undefined },
         timeZone,
         trackDate,
 
         ...(weather
           ? {
+              weather_ts: weather.weather_ts,
               temp_f: weather.temp_f,
               humidity_pct: weather.humidity_pct,
               baro_inhg: weather.baro_inhg,
               adr: weather.adr,
               correction: weather.correction,
-              weather_ts: weather.weather_ts,
               davis_uv_index: weather.davis_uv_index,
             }
           : {}),
       };
 
       const savedReading = await SupabaseStorageService.createReading(readingToSave);
-
       if (!savedReading) {
         Alert.alert('Error', 'Failed to save reading');
         return;
       }
 
-      // upload photos (if any)
-      const leftPath = leftLane.imageUri
-        ? await SupabaseStorageService.uploadImage(leftLane.imageUri, savedReading.id, 'left')
+      const leftPath = isLocalFileUri(leftLane.imageUri)
+        ? await SupabaseStorageService.uploadImage(leftLane.imageUri!, savedReading.id, 'left')
         : null;
 
-      const rightPath = rightLane.imageUri
-        ? await SupabaseStorageService.uploadImage(rightLane.imageUri, savedReading.id, 'right')
+      const rightPath = isLocalFileUri(rightLane.imageUri)
+        ? await SupabaseStorageService.uploadImage(rightLane.imageUri!, savedReading.id, 'right')
         : null;
 
       if (leftPath || rightPath) {
@@ -325,19 +424,7 @@ export default function RecordScreen() {
         });
       }
 
-      Alert.alert('Success', 'Reading saved successfully', [
-        {
-          text: 'OK',
-          onPress: () => {
-            setLeftLane(getEmptyLaneReading());
-            setRightLane(getEmptyLaneReading());
-            setSession('');
-            setPair('');
-            Keyboard.dismiss();
-            if (isEditMode) router.back();
-          },
-        },
-      ]);
+      Alert.alert('Success', 'Reading saved successfully', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e) {
       console.error('Save reading exception:', e);
       Alert.alert('Error', 'Failed to save reading');
@@ -346,19 +433,12 @@ export default function RecordScreen() {
     }
   };
 
-  const handleCancel = () => {
-    setLeftLane(getEmptyLaneReading());
-    setRightLane(getEmptyLaneReading());
-    setSession('');
-    setPair('');
-    Keyboard.dismiss();
-    router.back();
-  };
-
   const handleTrackSelect = (track: Track) => {
     setSelectedTrack(track);
     setShowTrackDropdown(false);
   };
+
+  const styles = getStyles(colors);
 
   const renderLaneInputs = (
     lane: LaneReading,
@@ -366,8 +446,6 @@ export default function RecordScreen() {
     title: string,
     laneType: 'left' | 'right'
   ) => {
-    const styles = getStyles(colors);
-
     return (
       <View style={styles.laneSection}>
         <Text style={styles.laneTitle}>{title}</Text>
@@ -509,8 +587,6 @@ export default function RecordScreen() {
     );
   };
 
-  const styles = getStyles(colors);
-
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -521,6 +597,7 @@ export default function RecordScreen() {
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          {/* Track selector */}
           <View style={styles.trackSelector}>
             <Text style={styles.sectionTitle}>Select Track</Text>
             <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowTrackDropdown(true)}>
@@ -529,58 +606,57 @@ export default function RecordScreen() {
             </TouchableOpacity>
           </View>
 
-          {selectedTrack ? (
-            <>
-              <View style={styles.sessionPairSection}>
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Session</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={session}
-                      onChangeText={setSession}
-                      placeholder="Enter session"
-                      placeholderTextColor={colors.textSecondary}
-                      returnKeyType="done"
-                      onSubmitEditing={() => Keyboard.dismiss()}
-                      {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Pair</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={pair}
-                      onChangeText={setPair}
-                      placeholder="Enter pair"
-                      placeholderTextColor={colors.textSecondary}
-                      returnKeyType="done"
-                      onSubmitEditing={() => Keyboard.dismiss()}
-                      {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
-                    />
-                  </View>
-                </View>
+          {/* Session/Pair */}
+          <View style={styles.sessionPairSection}>
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Session</Text>
+                <TextInput
+                  style={styles.input}
+                  value={session}
+                  onChangeText={setSession}
+                  placeholder="Enter session"
+                  placeholderTextColor={colors.textSecondary}
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+                />
               </View>
 
-              {renderLaneInputs(leftLane, setLeftLane, 'Left Lane', 'left')}
-              {renderLaneInputs(rightLane, setRightLane, 'Right Lane', 'right')}
-
-              <View style={styles.actions}>
-                <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={isSaving}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-                  onPress={handleSaveReading}
-                  disabled={isSaving}
-                >
-                  <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Reading'}</Text>
-                </TouchableOpacity>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Pair</Text>
+                <TextInput
+                  style={styles.input}
+                  value={pair}
+                  onChangeText={setPair}
+                  placeholder="Enter pair"
+                  placeholderTextColor={colors.textSecondary}
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+                />
               </View>
-            </>
-          ) : null}
+            </View>
+          </View>
+
+          {renderLaneInputs(leftLane, setLeftLane, 'Left Lane', 'left')}
+          {renderLaneInputs(rightLane, setRightLane, 'Right Lane', 'right')}
+
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={isSaving}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+              onPress={handleSaveReading}
+              disabled={isSaving || isLoadingEdit}
+            >
+              <Text style={styles.saveButtonText}>
+                {isLoadingEdit ? 'Loading…' : isSaving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Save Reading'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
 
         {/* Track dropdown */}
@@ -682,12 +758,32 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     dropdownButtonText: { fontSize: 16, color: colors.text, fontWeight: '500' },
 
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
     dropdownModal: { backgroundColor: colors.card, borderRadius: 16, width: '100%', maxHeight: '70%', overflow: 'hidden' },
-    dropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+    dropdownHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
     dropdownTitle: { fontSize: 20, fontWeight: '600', color: colors.text },
     dropdownList: { maxHeight: 400 },
-    dropdownItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+    dropdownItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
     dropdownItemActive: { backgroundColor: colors.background },
     dropdownItemText: { fontSize: 16, color: colors.text },
     dropdownItemTextActive: { fontWeight: '600', color: colors.primary },
@@ -700,21 +796,56 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     inputRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
     inputGroup: { flex: 1 },
     inputLabel: { fontSize: 14, fontWeight: '500', color: colors.textSecondary, marginBottom: 6 },
-    input: { backgroundColor: colors.background, borderRadius: 8, padding: 12, fontSize: 16, color: colors.text, borderWidth: 1, borderColor: colors.border },
+    input: {
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      color: colors.text,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
     notesInput: { height: 80, textAlignVertical: 'top' },
 
-    imageButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, borderRadius: 8, padding: 12, marginTop: 12, borderWidth: 1, borderColor: colors.border },
+    imageButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      padding: 12,
+      marginTop: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
     imageButtonText: { fontSize: 16, color: colors.primary, marginLeft: 8, fontWeight: '500' },
     previewImage: { width: '100%', height: 200, borderRadius: 8, marginTop: 12 },
 
     actions: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 40 },
-    cancelButton: { flex: 1, backgroundColor: colors.card, borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+    cancelButton: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
     cancelButtonText: { fontSize: 16, fontWeight: '600', color: colors.text },
     saveButton: { flex: 1, backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center' },
     saveButtonDisabled: { opacity: 0.6 },
     saveButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
 
-    keyboardAccessory: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 16, paddingVertical: 12, height: 50 },
+    keyboardAccessory: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      height: 50,
+    },
     doneButton: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.primary, borderRadius: 8 },
     doneButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
 
