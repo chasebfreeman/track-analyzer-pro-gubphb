@@ -127,13 +127,18 @@ export default function BrowseScreen() {
     }
   }, [selectedYear, selectedTrack?.id]);
 
-  useFocusEffect(
-    useCallback(() => {
-      console.log('Browse screen focused');
-      loadTracks();
-      loadAvailableYears();
-    }, [loadTracks, loadAvailableYears])
-  );
+useFocusEffect(
+  useCallback(() => {
+    console.log('Browse screen focused');
+
+    loadTracks();
+    loadAvailableYears();
+
+    if (selectedTrack) {
+      loadReadings(selectedTrack.id, selectedYear);
+    }
+  }, [loadTracks, loadAvailableYears, loadReadings, selectedTrack, selectedYear])
+);
 
   useEffect(() => {
     loadTracks();

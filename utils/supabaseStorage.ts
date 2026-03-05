@@ -303,7 +303,34 @@ export class SupabaseStorageService {
 
     return true;
   }
+static async getAvailableYears(trackId?: string): Promise<number[]> {
+  if (!isSupabaseConfigured()) return [];
 
+  let query = supabase
+    .from('readings')
+    .select('year')
+    .order('year', { ascending: false });
+
+  if (trackId) query = query.eq('track_id', trackId);
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching available years:', error);
+    return [];
+  }
+
+  // dedupe + clean
+  const years = Array.from(
+    new Set(
+      (data ?? [])
+        .map((r: any) => this.safeNumber(r.year))
+        .filter((y: number | null): y is number => y !== null && y > 1900)
+    )
+  ).sort((a, b) => b - a);
+
+  return years;
+}
   // ============================================
   // STORAGE (SIGNED URLS + UPLOAD)
   // ============================================
