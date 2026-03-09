@@ -23,9 +23,22 @@ CREATE TABLE IF NOT EXISTS public.readings (
   time TEXT NOT NULL,
   timestamp BIGINT NOT NULL,
   year INTEGER NOT NULL,
+  session TEXT,
+  pair TEXT,
   class_currently_running TEXT,
   left_lane JSONB NOT NULL,
   right_lane JSONB NOT NULL,
+  time_zone TEXT,
+  track_date TEXT,
+  left_photo_path TEXT,
+  right_photo_path TEXT,
+  weather_ts TIMESTAMPTZ,
+  temp_f DOUBLE PRECISION,
+  humidity_pct DOUBLE PRECISION,
+  baro_inhg DOUBLE PRECISION,
+  adr DOUBLE PRECISION,
+  correction DOUBLE PRECISION,
+  davis_uv_index DOUBLE PRECISION,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
@@ -236,6 +249,67 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.tracks;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.readings;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.team_members;
 
+-- Create private storage bucket for lane photos
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('reading-photos', 'reading-photos', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies for lane photos
+DROP POLICY IF EXISTS "Team members can view reading photos" ON storage.objects;
+DROP POLICY IF EXISTS "Team members can upload reading photos" ON storage.objects;
+DROP POLICY IF EXISTS "Team members can update reading photos" ON storage.objects;
+DROP POLICY IF EXISTS "Team members can delete reading photos" ON storage.objects;
+
+CREATE POLICY "Team members can view reading photos"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'reading-photos'
+    AND EXISTS (
+      SELECT 1 FROM public.team_members
+      WHERE team_members.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Team members can upload reading photos"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'reading-photos'
+    AND EXISTS (
+      SELECT 1 FROM public.team_members
+      WHERE team_members.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Team members can update reading photos"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'reading-photos'
+    AND EXISTS (
+      SELECT 1 FROM public.team_members
+      WHERE team_members.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'reading-photos'
+    AND EXISTS (
+      SELECT 1 FROM public.team_members
+      WHERE team_members.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Team members can delete reading photos"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'reading-photos'
+    AND EXISTS (
+      SELECT 1 FROM public.team_members
+      WHERE team_members.user_id = auth.uid()
+    )
+  );
 -- Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON public.tracks TO authenticated;
@@ -252,3 +326,6 @@ BEGIN
   RAISE NOTICE '3. All team members can view, create, edit, and delete tracks and readings';
   RAISE NOTICE '4. Real-time syncing is enabled across all devices';
 END $$;
+
+
+

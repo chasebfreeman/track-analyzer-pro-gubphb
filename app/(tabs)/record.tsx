@@ -159,6 +159,10 @@ export default function RecordScreen() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+  const [existingPhotoPaths, setExistingPhotoPaths] = useState<{ left: string | null; right: string | null }>({
+    left: null,
+    right: null,
+  });
 
   // dropdowns/modals
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
@@ -202,16 +206,26 @@ export default function RecordScreen() {
         }
 
         setExistingReading(r);
+        setExistingPhotoPaths({
+          left: r.left_photo_path ?? null,
+          right: r.right_photo_path ?? null,
+        });
 
         // Select track (prefer loaded track list if present)
         const tFromTracks = tracks.find((t) => t.id === r.trackId) ?? null;
         setSelectedTrack(tFromTracks ?? selectedTrack ?? null);
 
+        const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
+          leftPhotoPath: r.left_photo_path ?? null,
+          rightPhotoPath: r.right_photo_path ?? null,
+          expiresInSeconds: 60 * 60 * 24,
+        });
+
         // Fill fields
         setSession(r.session ?? '');
         setPair(r.pair ?? '');
-        setLeftLane({ ...r.leftLane, imageUri: undefined });
-        setRightLane({ ...r.rightLane, imageUri: undefined });
+        setLeftLane({ ...r.leftLane, imageUri: leftUrl ?? undefined });
+        setRightLane({ ...r.rightLane, imageUri: rightUrl ?? undefined });
 
         // NOTE: we do NOT set timestamp/year/date/time here — those stay on the reading
         // and remain stored on the backend. (We will not overwrite them on update.)
@@ -336,20 +350,47 @@ export default function RecordScreen() {
           return;
         }
 
-        // Photo uploads ONLY if user picked new local files
-        const leftPath = isLocalFileUri(leftLane.imageUri)
-          ? await SupabaseStorageService.uploadImage(leftLane.imageUri!, editReadingId, 'left')
-          : null;
+        let nextLeftPhotoPath = existingPhotoPaths.left;
+        let nextRightPhotoPath = existingPhotoPaths.right;
 
-        const rightPath = isLocalFileUri(rightLane.imageUri)
-          ? await SupabaseStorageService.uploadImage(rightLane.imageUri!, editReadingId, 'right')
-          : null;
+        if (isLocalFileUri(leftLane.imageUri)) {
+          const uploadedLeftPath = await SupabaseStorageService.uploadImage(leftLane.imageUri!, editReadingId, 'left');
+          if (uploadedLeftPath) {
+            nextLeftPhotoPath = uploadedLeftPath;
+            if (existingPhotoPaths.left && existingPhotoPaths.left !== uploadedLeftPath) {
+              await SupabaseStorageService.deleteImage(existingPhotoPaths.left);
+            }
+          }
+        } else if (!leftLane.imageUri && existingPhotoPaths.left) {
+          await SupabaseStorageService.deleteImage(existingPhotoPaths.left);
+          nextLeftPhotoPath = null;
+        }
 
-        if (leftPath || rightPath) {
+        if (isLocalFileUri(rightLane.imageUri)) {
+          const uploadedRightPath = await SupabaseStorageService.uploadImage(rightLane.imageUri!, editReadingId, 'right');
+          if (uploadedRightPath) {
+            nextRightPhotoPath = uploadedRightPath;
+            if (existingPhotoPaths.right && existingPhotoPaths.right !== uploadedRightPath) {
+              await SupabaseStorageService.deleteImage(existingPhotoPaths.right);
+            }
+          }
+        } else if (!rightLane.imageUri && existingPhotoPaths.right) {
+          await SupabaseStorageService.deleteImage(existingPhotoPaths.right);
+          nextRightPhotoPath = null;
+        }
+
+        if (
+          nextLeftPhotoPath !== existingPhotoPaths.left ||
+          nextRightPhotoPath !== existingPhotoPaths.right
+        ) {
           await SupabaseStorageService.updateReadingPhotoPaths({
             readingId: editReadingId,
-            leftPhotoPath: leftPath ?? undefined,
-            rightPhotoPath: rightPath ?? undefined,
+            leftPhotoPath: nextLeftPhotoPath,
+            rightPhotoPath: nextRightPhotoPath,
+          });
+          setExistingPhotoPaths({
+            left: nextLeftPhotoPath,
+            right: nextRightPhotoPath,
           });
         }
 

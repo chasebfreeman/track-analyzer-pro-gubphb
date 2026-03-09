@@ -40,6 +40,7 @@ This will create:
 - **tracks** table for storing race tracks
 - **readings** table for storing track readings
 - **team_members** table for managing team access
+- **reading-photos** private storage bucket for lane photos
 - Row Level Security (RLS) policies for team collaboration (FIXED: no infinite recursion)
 - Indexes for optimal performance
 - Real-time syncing capabilities
@@ -182,3 +183,4 @@ After setup:
 ---
 
 **Note**: Keep your Supabase credentials secure and never share them publicly.
+

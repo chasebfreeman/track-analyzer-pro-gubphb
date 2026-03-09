@@ -390,6 +390,19 @@ static async getAvailableYears(trackId?: string): Promise<number[]> {
     return objectPath;
   }
 
+  static async deleteImage(objectPath: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    const { error } = await supabase.storage.from('reading-photos').remove([objectPath]);
+
+    if (error) {
+      console.error('Storage delete error:', error);
+      return false;
+    }
+
+    return true;
+  }
+
   static async updateReadingPhotoPaths(params: {
     readingId: string;
     leftPhotoPath?: string | null;
