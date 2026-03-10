@@ -1,5 +1,7 @@
 // utils/supabaseStorage.ts
 
+import * as FileSystem from 'expo-file-system';
+import { decode as base64Decode } from 'base-64';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Track, TrackReading, LaneReading } from '@/types/TrackData';
 
@@ -12,6 +14,32 @@ export class SupabaseStorageService {
     if (value === null || value === undefined || value === '') return null;
     const n = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(n) ? n : null;
+  }
+
+  private static base64ToUint8Array(base64: string): Uint8Array {
+    const binaryString = base64Decode(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+
+    for (let i = 0; i < len; i += 1) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    return bytes;
+  }
+
+  private static guessImageExt(uri: string): string {
+    const match = uri.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
+    const ext = match?.[1]?.toLowerCase();
+    return ext ?? 'jpg';
+  }
+
+  private static contentTypeFromExt(ext: string): string {
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'png') return 'image/png';
+    if (ext === 'heic') return 'image/heic';
+    if (ext === 'webp') return 'image/webp';
+    return 'application/octet-stream';
   }
 
   private static getTrackDateFromTimestamp(ms: number, timeZone: string): string {
@@ -367,27 +395,32 @@ static async getAvailableYears(trackId?: string): Promise<number[]> {
     if (!isSupabaseConfigured()) return null;
 
     const BUCKET = 'reading-photos';
-
-    const extMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
-    const ext = (extMatch?.[1] || 'jpg').toLowerCase();
-
-    const contentType =
-      ext === 'png' ? 'image/png' : ext === 'jpeg' || ext === 'jpg' ? 'image/jpeg' : 'application/octet-stream';
-
+    const ext = this.guessImageExt(uri);
+    const contentType = this.contentTypeFromExt(ext);
     const fileName = `${lane}-${Date.now()}.${ext}`;
     const objectPath = `readings/${readingId}/${fileName}`;
 
-    const res = await fetch(uri);
-    const blob = await res.blob();
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const bytes = this.base64ToUint8Array(base64);
 
-    const { error } = await supabase.storage.from(BUCKET).upload(objectPath, blob, { contentType, upsert: true });
+      const { error } = await supabase.storage.from(BUCKET).upload(objectPath, bytes, {
+        contentType,
+        upsert: true,
+      });
 
-    if (error) {
-      console.error('Storage upload error:', error);
+      if (error) {
+        console.error('Storage upload error:', error);
+        return null;
+      }
+
+      return objectPath;
+    } catch (error) {
+      console.error('Storage upload exception:', error);
       return null;
     }
-
-    return objectPath;
   }
 
   static async deleteImage(objectPath: string): Promise<boolean> {
@@ -424,3 +457,6 @@ static async getAvailableYears(trackId?: string): Promise<number[]> {
     return true;
   }
 }
+
+
+
