@@ -1,7 +1,8 @@
 // app/(tabs)/browse/reading-detail.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
@@ -196,7 +197,9 @@ export default function ReadingDetailScreen() {
   };
 
   const renderLaneData = (lane: LaneReading, title: string) => {
-    const displayUri = title === 'Left Lane' ? leftImageUrl : rightImageUrl;
+    const isLeftLane = title === 'Left Lane';
+    const displayUri = isLeftLane ? leftImageUrl : rightImageUrl;
+    const photoPath = isLeftLane ? reading?.left_photo_path : reading?.right_photo_path;
 
     return (
       <View style={styles.laneSection}>
@@ -264,8 +267,10 @@ export default function ReadingDetailScreen() {
               })
             }
           >
-            <Image source={{ uri: displayUri }} style={styles.laneImage} />
+            <ExpoImage source={{ uri: displayUri }} style={styles.laneImage} contentFit='cover' cachePolicy='disk' />
           </TouchableOpacity>
+        ) : photoPath ? (
+          <Text style={styles.photoStatusText}>Photo found but still loading. Reopen this reading in a moment.</Text>
         ) : null}
       </View>
     );
@@ -372,8 +377,10 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
 
     notesSection: { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border },
     notesText: { fontSize: 14, color: colors.text, lineHeight: 20, marginTop: 4 },
+    photoStatusText: { fontSize: 13, color: colors.textSecondary, marginTop: 16 },
 
     laneImage: { width: '100%', height: 200, borderRadius: 8, marginTop: 16 },
   });
 }
+
 
