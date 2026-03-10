@@ -27,8 +27,29 @@ export default function ReadingDetailScreen() {
     const foundTrack = tracks.find((t) => t.id === params.trackId) ?? null;
     setTrack(foundTrack);
 
-    const foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
+    let foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
+
+    if (foundReading && !foundReading.left_photo_path && !foundReading.right_photo_path) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
+    }
+
     setReading(foundReading ?? null);
+
+    if (!foundReading) {
+      setLeftImageUrl(null);
+      setRightImageUrl(null);
+      return;
+    }
+
+    const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
+      leftPhotoPath: foundReading.left_photo_path ?? null,
+      rightPhotoPath: foundReading.right_photo_path ?? null,
+      expiresInSeconds: 60 * 60 * 24,
+    });
+
+    setLeftImageUrl(leftUrl);
+    setRightImageUrl(rightUrl);
   }, [params.readingId, params.trackId]);
 
   useEffect(() => {
@@ -40,30 +61,6 @@ export default function ReadingDetailScreen() {
       loadData();
     }, [loadData])
   );
-
-  useEffect(() => {
-    async function loadSignedUrls() {
-      if (!reading) {
-        setLeftImageUrl(null);
-        setRightImageUrl(null);
-        return;
-      }
-
-      const leftPath = (reading as any).left_photo_path ?? null;
-      const rightPath = (reading as any).right_photo_path ?? null;
-
-      const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
-        leftPhotoPath: leftPath,
-        rightPhotoPath: rightPath,
-        expiresInSeconds: 60 * 60 * 24,
-      });
-
-      setLeftImageUrl(leftUrl);
-      setRightImageUrl(rightUrl);
-    }
-
-    loadSignedUrls();
-  }, [reading]);
 
   const handleEdit = () => {
     if (!reading) return;
@@ -379,3 +376,4 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     laneImage: { width: '100%', height: 200, borderRadius: 8, marginTop: 16 },
   });
 }
+
