@@ -245,10 +245,6 @@ export default function PhotosScreen() {
       const timestamp = selectedDate.getTime();
       const photoPath = await SupabaseStorageService.uploadTrackPhoto(pendingImageUri, selectedTrack.id);
 
-      if (!photoPath) {
-        Alert.alert('Error', 'Photo upload failed.');
-        return;
-      }
 
       const saved = await SupabaseStorageService.createTrackPhoto({
         trackId: selectedTrack.id,
@@ -270,7 +266,8 @@ export default function PhotosScreen() {
       Alert.alert('Saved', 'Track photo saved.');
     } catch (error) {
       console.error('Save photo error:', error);
-      Alert.alert('Error', 'Failed to save photo.');
+      const message = error instanceof Error ? error.message : 'Failed to save photo.';
+      Alert.alert('Error', message);
     } finally {
       setIsSaving(false);
     }

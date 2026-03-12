@@ -469,8 +469,8 @@ export class SupabaseStorageService {
     return data?.signedUrl ?? null;
   }
 
-  static async uploadTrackPhoto(uri: string, trackId: string): Promise<string | null> {
-    if (!isSupabaseConfigured()) return null;
+  static async uploadTrackPhoto(uri: string, trackId: string): Promise<string> {
+    if (!isSupabaseConfigured()) throw new Error('Supabase is not configured');
 
     const BUCKET = 'track-photos';
     const ext = this.guessImageExt(uri);
@@ -491,13 +491,14 @@ export class SupabaseStorageService {
 
       if (error) {
         console.error('Track photo upload error:', error);
-        return null;
+        throw new Error(error.message || 'Track photo upload failed');
       }
 
       return objectPath;
     } catch (error) {
       console.error('Track photo upload exception:', error);
-      return null;
+      if (error instanceof Error) throw error;
+      throw new Error('Track photo upload failed');
     }
   }
 
