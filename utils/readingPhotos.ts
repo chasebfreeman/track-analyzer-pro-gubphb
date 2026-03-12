@@ -1,5 +1,5 @@
 // utils/readingPhotos.ts
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "@/utils/supabase"; // <-- adjust import to your supabase client location
 
 const BUCKET = "reading-photos";

@@ -1,6 +1,6 @@
 // utils/supabaseStorage.ts
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Track, TrackReading, LaneReading, TrackPhoto } from '@/types/TrackData';
 

@@ -12,7 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
