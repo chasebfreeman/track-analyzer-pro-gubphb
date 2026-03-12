@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
@@ -18,9 +17,6 @@ export default function ReadingDetailScreen() {
   const [reading, setReading] = useState<TrackReading | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
 
-  const [leftImageUrl, setLeftImageUrl] = useState<string | null>(null);
-  const [rightImageUrl, setRightImageUrl] = useState<string | null>(null);
-
   const loadData = useCallback(async () => {
     if (!params.readingId || !params.trackId) return;
 
@@ -28,31 +24,8 @@ export default function ReadingDetailScreen() {
     const foundTrack = tracks.find((t) => t.id === params.trackId) ?? null;
     setTrack(foundTrack);
 
-    let foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
-
-    let photoRetryCount = 0;
-    while (foundReading && !foundReading.left_photo_path && !foundReading.right_photo_path && photoRetryCount < 5) {
-      photoRetryCount += 1;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
-    }
-
+    const foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
     setReading(foundReading ?? null);
-
-    if (!foundReading) {
-      setLeftImageUrl(null);
-      setRightImageUrl(null);
-      return;
-    }
-
-    const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
-      leftPhotoPath: foundReading.left_photo_path ?? null,
-      rightPhotoPath: foundReading.right_photo_path ?? null,
-      expiresInSeconds: 60 * 60 * 24,
-    });
-
-    setLeftImageUrl(leftUrl);
-    setRightImageUrl(rightUrl);
   }, [params.readingId, params.trackId]);
 
   useEffect(() => {
@@ -114,11 +87,11 @@ export default function ReadingDetailScreen() {
 
   const fmtNum = (n: any, digits = 1) => {
     const v = typeof n === 'number' ? n : Number(n);
-    return Number.isFinite(v) ? v.toFixed(digits) : 'â€”';
+    return Number.isFinite(v) ? v.toFixed(digits) : '—';
   };
 
   const fmtTs = (ts?: string) => {
-    if (!ts) return 'â€”';
+    if (!ts) return '—';
     const d = new Date(ts);
     if (Number.isNaN(d.getTime())) return ts;
     return d.toLocaleString('en-US', {
@@ -150,7 +123,7 @@ export default function ReadingDetailScreen() {
 
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Temp (Â°F)</Text>
+            <Text style={styles.dataLabel}>Temp (°F)</Text>
             <Text style={styles.dataValue}>{fmtNum(r.temp_f, 1)}</Text>
           </View>
 
@@ -199,10 +172,6 @@ export default function ReadingDetailScreen() {
   };
 
   const renderLaneData = (lane: LaneReading, title: string) => {
-    const isLeftLane = title === 'Left Lane';
-    const displayUri = isLeftLane ? leftImageUrl : rightImageUrl;
-    const photoPath = isLeftLane ? reading?.left_photo_path : reading?.right_photo_path;
-
     return (
       <View style={styles.laneSection}>
         <Text style={styles.laneTitle}>{title}</Text>
@@ -257,22 +226,6 @@ export default function ReadingDetailScreen() {
             <Text style={styles.dataLabel}>Notes</Text>
             <Text style={styles.notesText}>{lane.notes}</Text>
           </View>
-        ) : null}
-
-        {displayUri ? (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() =>
-              router.push({
-                pathname: '/(modals)/photo-viewer',
-                params: { url: encodeURIComponent(displayUri) },
-              })
-            }
-          >
-            <ExpoImage source={{ uri: displayUri }} style={styles.laneImage} contentFit='cover' cachePolicy='disk' />
-          </TouchableOpacity>
-        ) : photoPath ? (
-          <Text style={styles.photoStatusText}>Photo found but still loading. Reopen this reading in a moment.</Text>
         ) : null}
       </View>
     );
@@ -379,11 +332,5 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
 
     notesSection: { marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border },
     notesText: { fontSize: 14, color: colors.text, lineHeight: 20, marginTop: 4 },
-    photoStatusText: { fontSize: 13, color: colors.textSecondary, marginTop: 16 },
-
-    laneImage: { width: '100%', height: 200, borderRadius: 8, marginTop: 16 },
   });
 }
-
-
-

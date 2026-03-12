@@ -2,13 +2,9 @@
 
 import * as FileSystem from 'expo-file-system';
 import { supabase, isSupabaseConfigured } from './supabase';
-import { Track, TrackReading, LaneReading } from '@/types/TrackData';
+import { Track, TrackReading, LaneReading, TrackPhoto } from '@/types/TrackData';
 
 export class SupabaseStorageService {
-  // ============================================
-  // UTIL HELPERS
-  // ============================================
-
   private static safeNumber(value: any): number | null {
     if (value === null || value === undefined || value === '') return null;
     const n = typeof value === 'number' ? value : Number(value);
@@ -97,10 +93,6 @@ export class SupabaseStorageService {
     return undefined;
   }
 
-  // ============================================
-  // TRACKS
-  // ============================================
-
   static async getAllTracks(): Promise<Track[]> {
     if (!isSupabaseConfigured()) return [];
 
@@ -146,7 +138,19 @@ export class SupabaseStorageService {
   static async deleteTrack(trackId: string): Promise<boolean> {
     if (!isSupabaseConfigured()) return false;
 
+    const { data: trackPhotos } = await supabase.from('track_photos').select('photo_path').eq('track_id', trackId);
+
+    await supabase.from('track_photos').delete().eq('track_id', trackId);
     await supabase.from('readings').delete().eq('track_id', trackId);
+
+    if (trackPhotos?.length) {
+      await supabase.storage.from('track-photos').remove(
+        trackPhotos
+          .map((photo: any) => photo.photo_path)
+          .filter((photoPath: string | null): photoPath is string => !!photoPath)
+      );
+    }
+
     const { error } = await supabase.from('tracks').delete().eq('id', trackId);
 
     if (error) {
@@ -156,10 +160,6 @@ export class SupabaseStorageService {
 
     return true;
   }
-
-  // ============================================
-  // READINGS
-  // ============================================
 
   static async getReadingsForTrack(trackId: string, year?: number): Promise<TrackReading[]> {
     if (!isSupabaseConfigured()) return [];
@@ -202,8 +202,6 @@ export class SupabaseStorageService {
         rightLane: reading.right_lane as LaneReading,
         timeZone,
         trackDate,
-
-        // weather snapshot
         weather_ts: reading.weather_ts ?? undefined,
         temp_f: this.safeNumber(reading.temp_f) ?? undefined,
         humidity_pct: this.safeNumber(reading.humidity_pct) ?? undefined,
@@ -252,8 +250,6 @@ export class SupabaseStorageService {
       rightLane: data.right_lane as LaneReading,
       timeZone,
       trackDate,
-
-      // weather snapshot
       weather_ts: data.weather_ts ?? undefined,
       temp_f: this.safeNumber(data.temp_f) ?? undefined,
       humidity_pct: this.safeNumber(data.humidity_pct) ?? undefined,
@@ -285,8 +281,6 @@ export class SupabaseStorageService {
         user_id: userData.user?.id,
         time_zone: reading.timeZone ?? null,
         track_date: reading.trackDate ?? null,
-
-        // weather snapshot
         weather_ts: reading.weather_ts ?? null,
         temp_f: reading.temp_f ?? null,
         humidity_pct: reading.humidity_pct ?? null,
@@ -322,8 +316,6 @@ export class SupabaseStorageService {
     if (updates.rightLane !== undefined) updateData.right_lane = updates.rightLane;
     if (updates.timeZone !== undefined) updateData.time_zone = updates.timeZone ?? null;
     if (updates.trackDate !== undefined) updateData.track_date = updates.trackDate ?? null;
-
-    // weather (only if provided)
     if (updates.weather_ts !== undefined) updateData.weather_ts = updates.weather_ts;
     if (updates.temp_f !== undefined) updateData.temp_f = updates.temp_f;
     if (updates.humidity_pct !== undefined) updateData.humidity_pct = updates.humidity_pct;
@@ -354,37 +346,171 @@ export class SupabaseStorageService {
 
     return true;
   }
-static async getAvailableYears(trackId?: string): Promise<number[]> {
-  if (!isSupabaseConfigured()) return [];
 
-  let query = supabase
-    .from('readings')
-    .select('year')
-    .order('year', { ascending: false });
+  static async getAvailableYears(trackId?: string): Promise<number[]> {
+    if (!isSupabaseConfigured()) return [];
 
-  if (trackId) query = query.eq('track_id', trackId);
+    let query = supabase.from('readings').select('year').order('year', { ascending: false });
+    if (trackId) query = query.eq('track_id', trackId);
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) {
-    console.error('Error fetching available years:', error);
-    return [];
+    if (error) {
+      console.error('Error fetching available years:', error);
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        (data ?? [])
+          .map((r: any) => this.safeNumber(r.year))
+          .filter((y: number | null): y is number => y !== null && y > 1900)
+      )
+    ).sort((a, b) => b - a);
   }
 
-  // dedupe + clean
-  const years = Array.from(
-    new Set(
-      (data ?? [])
-        .map((r: any) => this.safeNumber(r.year))
-        .filter((y: number | null): y is number => y !== null && y > 1900)
-    )
-  ).sort((a, b) => b - a);
+  static async getTrackPhotos(trackId?: string): Promise<TrackPhoto[]> {
+    if (!isSupabaseConfigured()) return [];
 
-  return years;
-}
-  // ============================================
-  // STORAGE (SIGNED URLS + UPLOAD)
-  // ============================================
+    let query = supabase.from('track_photos').select('*').order('timestamp', { ascending: false });
+    if (trackId) query = query.eq('track_id', trackId);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching track photos:', error);
+      return [];
+    }
+
+    return (data || []).map((photo: any) => ({
+      id: photo.id,
+      trackId: photo.track_id,
+      photoPath: photo.photo_path,
+      timestamp: this.safeNumber(photo.timestamp) ?? 0,
+      trackDate: photo.track_date ?? '',
+      timeLabel: photo.time_label ?? '',
+      timeZone: photo.time_zone ?? undefined,
+      createdAt: new Date(photo.created_at).getTime(),
+    }));
+  }
+
+  static async createTrackPhoto(params: {
+    trackId: string;
+    photoPath: string;
+    timestamp: number;
+    trackDate: string;
+    timeLabel: string;
+    timeZone?: string;
+  }): Promise<TrackPhoto | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    const { data: userData } = await supabase.auth.getUser();
+
+    const { data, error } = await supabase
+      .from('track_photos')
+      .insert({
+        track_id: params.trackId,
+        photo_path: params.photoPath,
+        timestamp: Math.trunc(params.timestamp),
+        track_date: params.trackDate,
+        time_label: params.timeLabel,
+        time_zone: params.timeZone ?? null,
+        user_id: userData.user?.id,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating track photo:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      trackId: data.track_id,
+      photoPath: data.photo_path,
+      timestamp: this.safeNumber(data.timestamp) ?? 0,
+      trackDate: data.track_date ?? '',
+      timeLabel: data.time_label ?? '',
+      timeZone: data.time_zone ?? undefined,
+      createdAt: new Date(data.created_at).getTime(),
+    };
+  }
+
+  static async getSignedTrackPhotoUrl(objectPath: string, expiresInSeconds: number = 3600): Promise<string | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    const { data, error } = await supabase.storage.from('track-photos').createSignedUrl(objectPath, expiresInSeconds);
+
+    if (error) {
+      console.error('Error creating track photo signed URL:', error);
+      return null;
+    }
+
+    return data?.signedUrl ?? null;
+  }
+
+  static async uploadTrackPhoto(uri: string, trackId: string): Promise<string | null> {
+    if (!isSupabaseConfigured()) return null;
+
+    const BUCKET = 'track-photos';
+    const ext = this.guessImageExt(uri);
+    const contentType = this.contentTypeFromExt(ext);
+    const fileName = `${Date.now()}.${ext}`;
+    const objectPath = `tracks/${trackId}/${fileName}`;
+
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const bytes = this.base64ToUint8Array(base64);
+
+      const { error } = await supabase.storage.from(BUCKET).upload(objectPath, bytes, {
+        contentType,
+        upsert: true,
+      });
+
+      if (error) {
+        console.error('Track photo upload error:', error);
+        return null;
+      }
+
+      return objectPath;
+    } catch (error) {
+      console.error('Track photo upload exception:', error);
+      return null;
+    }
+  }
+
+  static async deleteTrackPhotoObject(objectPath: string): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    const { error } = await supabase.storage.from('track-photos').remove([objectPath]);
+
+    if (error) {
+      console.error('Track photo storage delete error:', error);
+      return false;
+    }
+
+    return true;
+  }
+
+  static async deleteTrackPhoto(photoId: string, objectPath?: string | null): Promise<boolean> {
+    if (!isSupabaseConfigured()) return false;
+
+    const { error } = await supabase.from('track_photos').delete().eq('id', photoId);
+
+    if (error) {
+      console.error('Error deleting track photo:', error);
+      return false;
+    }
+
+    if (objectPath) {
+      await this.deleteTrackPhotoObject(objectPath);
+    }
+
+    return true;
+  }
 
   static async getSignedImageUrl(objectPath: string, expiresInSeconds: number = 3600): Promise<string | null> {
     if (!isSupabaseConfigured()) return null;
@@ -480,6 +606,3 @@ static async getAvailableYears(trackId?: string): Promise<number[]> {
     return true;
   }
 }
-
-
-

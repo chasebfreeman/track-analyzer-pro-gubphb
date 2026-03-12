@@ -1,6 +1,6 @@
 // app/(tabs)/record.tsx
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Image,
   Platform,
   Keyboard,
   Modal,
@@ -21,7 +20,6 @@ import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Track, LaneReading, TrackReading } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
-import * as ImagePicker from 'expo-image-picker';
 
 type WeatherLive = {
   inputs: {
@@ -81,12 +79,8 @@ function getEmptyLaneReading(): LaneReading {
     grippoOut: '',
     shine: '',
     notes: '',
-    imageUri: undefined,
   };
 }
-
-const isLocalFileUri = (uri?: string) =>
-  !!uri && (uri.startsWith('file://') || uri.startsWith('content://'));
 
 const getDeviceTimeZone = () => {
   try {
@@ -148,33 +142,20 @@ export default function RecordScreen() {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
-
   const [session, setSession] = useState('');
   const [pair, setPair] = useState('');
   const [leftLane, setLeftLane] = useState<LaneReading>(getEmptyLaneReading());
   const [rightLane, setRightLane] = useState<LaneReading>(getEmptyLaneReading());
-
-  // ✅ store the existing reading when editing (for weather + original fields)
   const [existingReading, setExistingReading] = useState<TrackReading | null>(null);
-
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingEdit, setIsLoadingEdit] = useState(false);
-  const [existingPhotoPaths, setExistingPhotoPaths] = useState<{ left: string | null; right: string | null }>({
-    left: null,
-    right: null,
-  });
-
-  // dropdowns/modals
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
-  const [showImageActions, setShowImageActions] = useState(false);
-  const [imageLaneTarget, setImageLaneTarget] = useState<'left' | 'right' | null>(null);
 
   const loadTracks = useCallback(async () => {
     const allTracks = await SupabaseStorageService.getAllTracks();
     const sorted = allTracks.sort((a, b) => a.name.localeCompare(b.name));
     setTracks(sorted);
 
-    // If NOT editing, allow preselect via params.trackId
     if (!isEditMode && params.trackId && typeof params.trackId === 'string') {
       const t = sorted.find((x) => x.id === params.trackId) ?? null;
       if (t) setSelectedTrack(t);
@@ -191,7 +172,6 @@ export default function RecordScreen() {
     }, [loadTracks])
   );
 
-  // ✅ Load reading into form when editing
   useEffect(() => {
     const run = async () => {
       if (!isEditMode || !editReadingId) return;
@@ -206,29 +186,12 @@ export default function RecordScreen() {
         }
 
         setExistingReading(r);
-        setExistingPhotoPaths({
-          left: r.left_photo_path ?? null,
-          right: r.right_photo_path ?? null,
-        });
-
-        // Select track (prefer loaded track list if present)
         const tFromTracks = tracks.find((t) => t.id === r.trackId) ?? null;
         setSelectedTrack(tFromTracks ?? selectedTrack ?? null);
-
-        const { leftUrl, rightUrl } = await SupabaseStorageService.getSignedUrlsForReading({
-          leftPhotoPath: r.left_photo_path ?? null,
-          rightPhotoPath: r.right_photo_path ?? null,
-          expiresInSeconds: 60 * 60 * 24,
-        });
-
-        // Fill fields
         setSession(r.session ?? '');
         setPair(r.pair ?? '');
-        setLeftLane({ ...r.leftLane, imageUri: leftUrl ?? undefined });
-        setRightLane({ ...r.rightLane, imageUri: rightUrl ?? undefined });
-
-        // NOTE: we do NOT set timestamp/year/date/time here — those stay on the reading
-        // and remain stored on the backend. (We will not overwrite them on update.)
+        setLeftLane({ ...r.leftLane, imageUri: undefined });
+        setRightLane({ ...r.rightLane, imageUri: undefined });
       } catch (e) {
         console.error('Edit load error:', e);
         Alert.alert('Error', 'Failed to load reading');
@@ -239,78 +202,14 @@ export default function RecordScreen() {
     };
 
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, editReadingId, tracks.length]);
+  }, [isEditMode, editReadingId, tracks, router, selectedTrack]);
 
-  // If we loaded reading before tracks finished, fix selectedTrack once tracks arrive
   useEffect(() => {
     if (!existingReading) return;
     if (selectedTrack?.id === existingReading.trackId) return;
     const t = tracks.find((x) => x.id === existingReading.trackId) ?? null;
     if (t) setSelectedTrack(t);
   }, [tracks, existingReading, selectedTrack?.id]);
-
-  const openImageActions = (lane: 'left' | 'right') => {
-    setImageLaneTarget(lane);
-    setShowImageActions(true);
-  };
-
-  const setLaneImage = (lane: 'left' | 'right', uri: string) => {
-    if (lane === 'left') setLeftLane((prev) => ({ ...prev, imageUri: uri }));
-    else setRightLane((prev) => ({ ...prev, imageUri: uri }));
-  };
-
-  const pickFromLibrary = async () => {
-    const lane = imageLaneTarget;
-    setShowImageActions(false);
-    if (!lane) return;
-
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setLaneImage(lane, result.assets[0].uri);
-    }
-  };
-
-  const takePhoto = async () => {
-    const lane = imageLaneTarget;
-    setShowImageActions(false);
-    if (!lane) return;
-
-    const camPerm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!camPerm.granted) {
-      Alert.alert('Permission Required', 'Please allow camera access to take a photo');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setLaneImage(lane, result.assets[0].uri);
-    }
-  };
-
-  const removePhoto = () => {
-    const lane = imageLaneTarget;
-    setShowImageActions(false);
-    if (!lane) return;
-
-    if (lane === 'left') setLeftLane((prev) => ({ ...prev, imageUri: undefined }));
-    else setRightLane((prev) => ({ ...prev, imageUri: undefined }));
-  };
 
   const handleCancel = () => {
     Keyboard.dismiss();
@@ -326,16 +225,12 @@ export default function RecordScreen() {
     setIsSaving(true);
 
     try {
-      // ======================================================
-      // EDIT MODE: update existing reading (NO weather refetch)
-      // ======================================================
       if (isEditMode && editReadingId) {
         if (!existingReading) {
           Alert.alert('Error', 'Edit state not ready yet');
           return;
         }
 
-        // Only update fields the user edits here (lanes/session/pair/track)
         const updates: Partial<TrackReading> = {
           trackId: selectedTrack.id,
           session: session || undefined,
@@ -350,66 +245,17 @@ export default function RecordScreen() {
           return;
         }
 
-        let nextLeftPhotoPath = existingPhotoPaths.left;
-        let nextRightPhotoPath = existingPhotoPaths.right;
-
-        if (isLocalFileUri(leftLane.imageUri)) {
-          const uploadedLeftPath = await SupabaseStorageService.uploadImage(leftLane.imageUri!, editReadingId, 'left');
-          if (uploadedLeftPath) {
-            nextLeftPhotoPath = uploadedLeftPath;
-            if (existingPhotoPaths.left && existingPhotoPaths.left !== uploadedLeftPath) {
-              await SupabaseStorageService.deleteImage(existingPhotoPaths.left);
-            }
-          }
-        } else if (!leftLane.imageUri && existingPhotoPaths.left) {
-          await SupabaseStorageService.deleteImage(existingPhotoPaths.left);
-          nextLeftPhotoPath = null;
-        }
-
-        if (isLocalFileUri(rightLane.imageUri)) {
-          const uploadedRightPath = await SupabaseStorageService.uploadImage(rightLane.imageUri!, editReadingId, 'right');
-          if (uploadedRightPath) {
-            nextRightPhotoPath = uploadedRightPath;
-            if (existingPhotoPaths.right && existingPhotoPaths.right !== uploadedRightPath) {
-              await SupabaseStorageService.deleteImage(existingPhotoPaths.right);
-            }
-          }
-        } else if (!rightLane.imageUri && existingPhotoPaths.right) {
-          await SupabaseStorageService.deleteImage(existingPhotoPaths.right);
-          nextRightPhotoPath = null;
-        }
-
-        if (
-          nextLeftPhotoPath !== existingPhotoPaths.left ||
-          nextRightPhotoPath !== existingPhotoPaths.right
-        ) {
-          await SupabaseStorageService.updateReadingPhotoPaths({
-            readingId: editReadingId,
-            leftPhotoPath: nextLeftPhotoPath,
-            rightPhotoPath: nextRightPhotoPath,
-          });
-          setExistingPhotoPaths({
-            left: nextLeftPhotoPath,
-            right: nextRightPhotoPath,
-          });
-        }
-
         Alert.alert('Saved', 'Reading updated', [{ text: 'OK', onPress: () => router.back() }]);
         return;
       }
 
-      // ==========================================
-      // CREATE MODE: create new reading + weather
-      // ==========================================
       const ms = Date.now();
       const timeZone = getDeviceTimeZone();
       const trackDate = trackDateString(ms, timeZone);
       const time12Hour = trackTimeString(ms, timeZone);
-
       const y = Number(trackDate.slice(0, 4));
       const year = Number.isFinite(y) && y > 1900 ? y : new Date(ms).getFullYear();
 
-      // Weather snapshot (best effort)
       let weather: Awaited<ReturnType<typeof fetchEliteTrackWeatherSnapshot>> | null = null;
       try {
         weather = await fetchEliteTrackWeatherSnapshot();
@@ -429,7 +275,6 @@ export default function RecordScreen() {
         rightLane: { ...rightLane, imageUri: undefined },
         timeZone,
         trackDate,
-
         ...(weather
           ? {
               weather_ts: weather.weather_ts,
@@ -449,22 +294,6 @@ export default function RecordScreen() {
         return;
       }
 
-      const leftPath = isLocalFileUri(leftLane.imageUri)
-        ? await SupabaseStorageService.uploadImage(leftLane.imageUri!, savedReading.id, 'left')
-        : null;
-
-      const rightPath = isLocalFileUri(rightLane.imageUri)
-        ? await SupabaseStorageService.uploadImage(rightLane.imageUri!, savedReading.id, 'right')
-        : null;
-
-      if (leftPath || rightPath) {
-        await SupabaseStorageService.updateReadingPhotoPaths({
-          readingId: savedReading.id,
-          leftPhotoPath: leftPath ?? undefined,
-          rightPhotoPath: rightPath ?? undefined,
-        });
-      }
-
       Alert.alert('Success', 'Reading saved successfully', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e) {
       console.error('Save reading exception:', e);
@@ -481,12 +310,7 @@ export default function RecordScreen() {
 
   const styles = getStyles(colors);
 
-  const renderLaneInputs = (
-    lane: LaneReading,
-    setLane: (lane: LaneReading) => void,
-    title: string,
-    laneType: 'left' | 'right'
-  ) => {
+  const renderLaneInputs = (lane: LaneReading, setLane: (lane: LaneReading) => void, title: string) => {
     return (
       <View style={styles.laneSection}>
         <Text style={styles.laneTitle}>{title}</Text>
@@ -498,7 +322,7 @@ export default function RecordScreen() {
               style={styles.input}
               value={lane.trackTemp}
               onChangeText={(text) => setLane({ ...lane, trackTemp: text })}
-              placeholder="°F"
+              placeholder="�F"
               placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               returnKeyType="done"
@@ -617,13 +441,6 @@ export default function RecordScreen() {
             {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
           />
         </View>
-
-        <TouchableOpacity style={styles.imageButton} onPress={() => openImageActions(laneType)}>
-          <IconSymbol ios_icon_name="camera" android_material_icon_name="camera" size={24} color={colors.primary} />
-          <Text style={styles.imageButtonText}>{lane.imageUri ? 'Photo Options' : 'Add Photo'}</Text>
-        </TouchableOpacity>
-
-        {lane.imageUri ? <Image source={{ uri: lane.imageUri }} style={styles.previewImage} /> : null}
       </View>
     );
   };
@@ -635,10 +452,10 @@ export default function RecordScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{isEditMode ? 'Edit Reading' : 'Record Reading'}</Text>
+          <Text style={styles.headerSubtitle}>Photos live in the Photos tab now.</Text>
         </View>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          {/* Track selector */}
           <View style={styles.trackSelector}>
             <Text style={styles.sectionTitle}>Select Track</Text>
             <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowTrackDropdown(true)}>
@@ -647,7 +464,6 @@ export default function RecordScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Session/Pair */}
           <View style={styles.sessionPairSection}>
             <View style={styles.inputRow}>
               <View style={styles.inputGroup}>
@@ -680,8 +496,8 @@ export default function RecordScreen() {
             </View>
           </View>
 
-          {renderLaneInputs(leftLane, setLeftLane, 'Left Lane', 'left')}
-          {renderLaneInputs(rightLane, setRightLane, 'Right Lane', 'right')}
+          {renderLaneInputs(leftLane, setLeftLane, 'Left Lane')}
+          {renderLaneInputs(rightLane, setRightLane, 'Right Lane')}
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={isSaving}>
@@ -694,13 +510,12 @@ export default function RecordScreen() {
               disabled={isSaving || isLoadingEdit}
             >
               <Text style={styles.saveButtonText}>
-                {isLoadingEdit ? 'Loading…' : isSaving ? 'Saving…' : isEditMode ? 'Save Changes' : 'Save Reading'}
+                {isLoadingEdit ? 'Loading...' : isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save Reading'}
               </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
 
-        {/* Track dropdown */}
         <Modal visible={showTrackDropdown} transparent animationType="fade" onRequestClose={() => setShowTrackDropdown(false)}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowTrackDropdown(false)}>
             <View style={styles.dropdownModal}>
@@ -728,37 +543,6 @@ export default function RecordScreen() {
             </View>
           </TouchableOpacity>
         </Modal>
-
-        {/* Image actions */}
-        <Modal visible={showImageActions} transparent animationType="fade" onRequestClose={() => setShowImageActions(false)}>
-          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowImageActions(false)}>
-            <View style={styles.dropdownModal}>
-              <View style={styles.dropdownHeader}>
-                <Text style={styles.dropdownTitle}>Photo</Text>
-                <TouchableOpacity onPress={() => setShowImageActions(false)}>
-                  <IconSymbol ios_icon_name="xmark" android_material_icon_name="close" size={24} color={colors.text} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={{ padding: 16, gap: 12 }}>
-                <TouchableOpacity style={styles.actionRow} onPress={takePhoto}>
-                  <IconSymbol ios_icon_name="camera" android_material_icon_name="photo-camera" size={20} color={colors.primary} />
-                  <Text style={styles.actionText}>Take Photo</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.actionRow} onPress={pickFromLibrary}>
-                  <IconSymbol ios_icon_name="photo" android_material_icon_name="photo" size={20} color={colors.primary} />
-                  <Text style={styles.actionText}>Choose from Library</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.actionRow} onPress={removePhoto}>
-                  <IconSymbol ios_icon_name="trash" android_material_icon_name="delete" size={20} color={colors.primary} />
-                  <Text style={styles.actionText}>Remove Photo</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </Modal>
       </SafeAreaView>
 
       {Platform.OS === 'ios' ? (
@@ -778,8 +562,9 @@ export default function RecordScreen() {
 function getStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { paddingHorizontal: 20, paddingVertical: 16 },
+    header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
     headerTitle: { fontSize: 32, fontWeight: 'bold', color: colors.text },
+    headerSubtitle: { fontSize: 14, color: colors.textSecondary, marginTop: 6 },
 
     content: { flex: 1 },
     contentContainer: { padding: 20, paddingBottom: 140 },
@@ -830,10 +615,8 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     dropdownItemTextActive: { fontWeight: '600', color: colors.primary },
 
     sessionPairSection: { backgroundColor: colors.card, borderRadius: 12, padding: 16, marginBottom: 16 },
-
     laneSection: { backgroundColor: colors.card, borderRadius: 12, padding: 16, marginBottom: 16 },
     laneTitle: { fontSize: 20, fontWeight: '600', color: colors.text, marginBottom: 16 },
-
     inputRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
     inputGroup: { flex: 1 },
     inputLabel: { fontSize: 14, fontWeight: '500', color: colors.textSecondary, marginBottom: 6 },
@@ -847,20 +630,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderColor: colors.border,
     },
     notesInput: { height: 80, textAlignVertical: 'top' },
-
-    imageButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.background,
-      borderRadius: 8,
-      padding: 12,
-      marginTop: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    imageButtonText: { fontSize: 16, color: colors.primary, marginLeft: 8, fontWeight: '500' },
-    previewImage: { width: '100%', height: 200, borderRadius: 8, marginTop: 12 },
 
     actions: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 40 },
     cancelButton: {
@@ -889,8 +658,5 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     doneButton: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.primary, borderRadius: 8 },
     doneButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
-
-    actionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
-    actionText: { fontSize: 16, fontWeight: '600', color: colors.text },
   });
 }

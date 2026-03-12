@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NativeTabs, Icon, Label } from 'expo-router/unstable-native-tabs';
 import { useThemeColors } from '@/styles/commonStyles';
@@ -8,17 +7,12 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const colors = useThemeColors();
   const isDark = colorScheme === 'dark';
-  
-  console.log('TabLayout (Android) rendering, colorScheme:', colorScheme);
-  console.log('TabLayout colors:', { primary: colors.primary, textSecondary: colors.textSecondary });
-  
+
   return (
     <NativeTabs
       tintColor={colors.primary}
       iconColor={colors.text}
-      labelStyle={{
-        color: colors.text,
-      }}
+      labelStyle={{ color: colors.text }}
       backgroundColor={isDark ? '#1C1C1E' : '#F2F2F7'}
       backBehavior="initialRoute"
     >
@@ -33,6 +27,10 @@ export default function TabLayout() {
       <NativeTabs.Trigger name="browse">
         <Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} drawable="search" />
         <Label>Browse</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="photos">
+        <Icon sf={{ default: 'photo.on.rectangle', selected: 'photo.on.rectangle.fill' }} drawable="photo_library" />
+        <Label>Photos</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} drawable="settings" />

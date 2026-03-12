@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     // 3) Delete app data owned by user (keep or replace with DB cascade later)
+    await admin.from("track_photos").delete().eq("user_id", userId);
     await admin.from("readings").delete().eq("user_id", userId);
     await admin.from("tracks").delete().eq("user_id", userId);
     await admin.from("team_members").delete().eq("user_id", userId);
