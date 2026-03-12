@@ -1,5 +1,4 @@
 # Track Analyzer Pro
 
-This app was built using [Natively.dev](https://natively.dev) - a platform for creating mobile apps.
+This app was built for racers. By Racers
 
-Made with 💙 for creativity.
