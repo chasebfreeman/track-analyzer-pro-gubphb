@@ -30,8 +30,10 @@ export default function ReadingDetailScreen() {
 
     let foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
 
-    if (foundReading && !foundReading.left_photo_path && !foundReading.right_photo_path) {
-      await new Promise((resolve) => setTimeout(resolve, 700));
+    let photoRetryCount = 0;
+    while (foundReading && !foundReading.left_photo_path && !foundReading.right_photo_path && photoRetryCount < 5) {
+      photoRetryCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       foundReading = await SupabaseStorageService.getReadingById(params.readingId as string);
     }
 
@@ -382,5 +384,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     laneImage: { width: '100%', height: 200, borderRadius: 8, marginTop: 16 },
   });
 }
+
 
 

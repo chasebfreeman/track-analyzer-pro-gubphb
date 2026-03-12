@@ -1,7 +1,6 @@
 // utils/supabaseStorage.ts
 
 import * as FileSystem from 'expo-file-system';
-import { decode as base64Decode } from 'base-64';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Track, TrackReading, LaneReading } from '@/types/TrackData';
 
@@ -16,8 +15,32 @@ export class SupabaseStorageService {
     return Number.isFinite(n) ? n : null;
   }
 
+  private static decodeBase64(base64: string): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    const sanitized = base64.replace(/[^A-Za-z0-9+/=]/g, '');
+    let output = '';
+    let index = 0;
+
+    while (index < sanitized.length) {
+      const enc1 = chars.indexOf(sanitized.charAt(index++));
+      const enc2 = chars.indexOf(sanitized.charAt(index++));
+      const enc3 = chars.indexOf(sanitized.charAt(index++));
+      const enc4 = chars.indexOf(sanitized.charAt(index++));
+
+      const chr1 = (enc1 << 2) | (enc2 >> 4);
+      const chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+      const chr3 = ((enc3 & 3) << 6) | enc4;
+
+      output += String.fromCharCode(chr1);
+      if (enc3 !== 64) output += String.fromCharCode(chr2);
+      if (enc4 !== 64) output += String.fromCharCode(chr3);
+    }
+
+    return output;
+  }
+
   private static base64ToUint8Array(base64: string): Uint8Array {
-    const binaryString = base64Decode(base64);
+    const binaryString = this.decodeBase64(base64);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
 
