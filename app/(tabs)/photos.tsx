@@ -23,7 +23,6 @@ import { Track, TrackPhoto } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
 
 type TrackPhotoWithUrl = TrackPhoto & { signedUrl: string | null };
-
 type PickerMode = 'date' | 'time' | null;
 
 const getDeviceTimeZone = () => {
@@ -84,6 +83,16 @@ const displayStamp = (date: Date) => {
   return `${month}/${day}/${year} @ ${hours}:${minutes}${ampm.toLowerCase()}`;
 };
 
+const mergePickerValue = (current: Date, value: Date, mode: PickerMode) => {
+  const next = new Date(current);
+  if (mode === 'date') {
+    next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
+  } else if (mode === 'time') {
+    next.setHours(value.getHours(), value.getMinutes(), 0, 0);
+  }
+  return next;
+};
+
 export default function PhotosScreen() {
   const colors = useThemeColors();
   const router = useRouter();
@@ -93,6 +102,7 @@ export default function PhotosScreen() {
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [photos, setPhotos] = useState<TrackPhotoWithUrl[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [pickerDraftDate, setPickerDraftDate] = useState(new Date());
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
   const [showImageActions, setShowImageActions] = useState(false);
@@ -147,6 +157,15 @@ export default function PhotosScreen() {
     }
   };
 
+  const openPicker = (mode: PickerMode) => {
+    setPickerDraftDate(selectedDate);
+    setPickerMode(mode);
+  };
+
+  const closePicker = () => {
+    setPickerMode(null);
+  };
+
   const handleTrackSelect = (track: Track) => {
     setSelectedTrack(track);
     setShowTrackDropdown(false);
@@ -189,21 +208,25 @@ export default function PhotosScreen() {
     }
   };
 
-  const onChangePicker = (_event: DateTimePickerEvent, value?: Date) => {
-    if (Platform.OS === 'android') {
-      setPickerMode(null);
+  const onChangePicker = (event: DateTimePickerEvent, value?: Date) => {
+    if (event.type === 'dismissed') {
+      closePicker();
+      return;
     }
-    if (!value) return;
+    if (!value || !pickerMode) return;
 
-    setSelectedDate((current) => {
-      const next = new Date(current);
-      if (pickerMode === 'date') {
-        next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
-      } else if (pickerMode === 'time') {
-        next.setHours(value.getHours(), value.getMinutes(), 0, 0);
-      }
-      return next;
-    });
+    if (Platform.OS === 'ios') {
+      setPickerDraftDate((current) => mergePickerValue(current, value, pickerMode));
+      return;
+    }
+
+    setSelectedDate((current) => mergePickerValue(current, value, pickerMode));
+    closePicker();
+  };
+
+  const applyPicker = () => {
+    setSelectedDate(pickerDraftDate);
+    closePicker();
   };
 
   const handleSavePhoto = async () => {
@@ -294,11 +317,11 @@ export default function PhotosScreen() {
 
             <Text style={[styles.sectionTitle, styles.metaTitle]}>Photo Timestamp</Text>
             <View style={styles.metaRow}>
-              <TouchableOpacity style={styles.metaButton} onPress={() => setPickerMode('date')}>
+              <TouchableOpacity style={styles.metaButton} onPress={() => openPicker('date')}>
                 <IconSymbol ios_icon_name="calendar" android_material_icon_name="calendar-today" size={18} color={colors.primary} />
                 <Text style={styles.metaButtonText}>{selectedDate.toLocaleDateString('en-US')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.metaButton} onPress={() => setPickerMode('time')}>
+              <TouchableOpacity style={styles.metaButton} onPress={() => openPicker('time')}>
                 <IconSymbol ios_icon_name="clock" android_material_icon_name="access-time" size={18} color={colors.primary} />
                 <Text style={styles.metaButtonText}>{selectedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</Text>
               </TouchableOpacity>
@@ -412,13 +435,27 @@ export default function PhotosScreen() {
           </TouchableOpacity>
         </Modal>
 
-        {pickerMode ? (
-          <DateTimePicker
-            value={selectedDate}
-            mode={pickerMode}
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={onChangePicker}
-          />
+        {pickerMode && Platform.OS === 'ios' ? (
+          <Modal visible transparent animationType="fade" onRequestClose={closePicker}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.pickerModal}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={closePicker}>
+                    <Text style={styles.pickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>{pickerMode === 'date' ? 'Choose Date' : 'Choose Time'}</Text>
+                  <TouchableOpacity onPress={applyPicker}>
+                    <Text style={styles.pickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker value={pickerDraftDate} mode={pickerMode} display="spinner" onChange={onChangePicker} />
+              </View>
+            </View>
+          </Modal>
+        ) : null}
+
+        {pickerMode && Platform.OS !== 'ios' ? (
+          <DateTimePicker value={selectedDate} mode={pickerMode} display="default" onChange={onChangePicker} />
         ) : null}
       </SafeAreaView>
     </>
@@ -431,13 +468,11 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
     headerTitle: { fontSize: 30, fontWeight: '700', color: colors.text },
     headerSubtitle: { fontSize: 14, color: colors.textSecondary, marginTop: 6, lineHeight: 20 },
-
     content: { flex: 1 },
     contentContainer: { padding: 20, paddingBottom: 140 },
     card: { backgroundColor: colors.card, borderRadius: 16, padding: 16, marginBottom: 20 },
     sectionTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 12 },
     metaTitle: { marginTop: 18 },
-
     dropdownButton: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -449,7 +484,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderColor: colors.border,
     },
     dropdownButtonText: { fontSize: 16, color: colors.text, fontWeight: '500' },
-
     metaRow: { flexDirection: 'row', gap: 12 },
     metaButton: {
       flex: 1,
@@ -466,7 +500,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     metaButtonText: { color: colors.text, fontSize: 15, fontWeight: '500' },
     timestampPreview: { marginTop: 12, fontSize: 14, color: colors.textSecondary },
-
     uploadActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
     secondaryButton: {
       flex: 1,
@@ -491,7 +524,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     primaryButtonDisabled: { opacity: 0.55 },
     primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-
     pendingImage: { width: '100%', height: 220, borderRadius: 14, marginTop: 16 },
     listHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
     listCount: {
@@ -504,11 +536,9 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.textSecondary,
       fontWeight: '600',
     },
-
     emptyCard: { backgroundColor: colors.card, borderRadius: 16, padding: 20 },
     emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 6 },
     emptyText: { fontSize: 14, lineHeight: 20, color: colors.textSecondary },
-
     photoCard: { backgroundColor: colors.card, borderRadius: 16, padding: 12, marginBottom: 16 },
     photoImage: { width: '100%', height: 220, borderRadius: 12, backgroundColor: colors.background },
     photoImageFallback: { alignItems: 'center', justifyContent: 'center' },
@@ -526,7 +556,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.5)',
@@ -559,5 +588,18 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     actionList: { paddingHorizontal: 16, paddingVertical: 8 },
     actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
     actionText: { fontSize: 16, fontWeight: '600', color: colors.text },
+    pickerModal: { width: '100%', backgroundColor: colors.card, borderRadius: 16, overflow: 'hidden' },
+    pickerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    pickerTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+    pickerCancelText: { fontSize: 16, color: colors.textSecondary },
+    pickerDoneText: { fontSize: 16, fontWeight: '600', color: colors.primary },
   });
 }

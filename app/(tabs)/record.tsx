@@ -211,6 +211,23 @@ export default function RecordScreen() {
     if (t) setSelectedTrack(t);
   }, [tracks, existingReading, selectedTrack?.id]);
 
+  useEffect(() => {
+    if (isEditMode) return;
+
+    setExistingReading(null);
+    setSession('');
+    setPair('');
+    setLeftLane(getEmptyLaneReading());
+    setRightLane(getEmptyLaneReading());
+
+    if (params.trackId && typeof params.trackId === 'string') {
+      const t = tracks.find((x) => x.id === params.trackId) ?? null;
+      setSelectedTrack(t);
+    } else {
+      setSelectedTrack(null);
+    }
+  }, [isEditMode, params.trackId, tracks]);
+
   const handleCancel = () => {
     Keyboard.dismiss();
     router.back();
@@ -322,7 +339,7 @@ export default function RecordScreen() {
               style={styles.input}
               value={lane.trackTemp}
               onChangeText={(text) => setLane({ ...lane, trackTemp: text })}
-              placeholder="°F"
+              placeholder="ï¿½F"
               placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               returnKeyType="done"

@@ -138,17 +138,36 @@ export class SupabaseStorageService {
   static async deleteTrack(trackId: string): Promise<boolean> {
     if (!isSupabaseConfigured()) return false;
 
-    const { data: trackPhotos } = await supabase.from('track_photos').select('photo_path').eq('track_id', trackId);
+    const { data: trackPhotos, error: trackPhotosError } = await supabase.from('track_photos').select('photo_path').eq('track_id', trackId);
+    if (trackPhotosError) {
+      console.error('Error loading track photos for delete:', trackPhotosError);
+      return false;
+    }
 
-    await supabase.from('track_photos').delete().eq('track_id', trackId);
-    await supabase.from('readings').delete().eq('track_id', trackId);
+    const { error: photosDeleteError } = await supabase.from('track_photos').delete().eq('track_id', trackId);
+    if (photosDeleteError) {
+      console.error('Error deleting track photos:', photosDeleteError);
+      return false;
+    }
 
     if (trackPhotos?.length) {
-      await supabase.storage.from('track-photos').remove(
-        trackPhotos
-          .map((photo: any) => photo.photo_path)
-          .filter((photoPath: string | null): photoPath is string => !!photoPath)
-      );
+      const photoPaths = trackPhotos
+        .map((photo: any) => photo.photo_path)
+        .filter((photoPath: string | null): photoPath is string => !!photoPath);
+
+      if (photoPaths.length) {
+        const { error: storageDeleteError } = await supabase.storage.from('track-photos').remove(photoPaths);
+        if (storageDeleteError) {
+          console.error('Error deleting track photo storage:', storageDeleteError);
+          return false;
+        }
+      }
+    }
+
+    const { error: readingsDeleteError } = await supabase.from('readings').delete().eq('track_id', trackId);
+    if (readingsDeleteError) {
+      console.error('Error deleting track readings:', readingsDeleteError);
+      return false;
     }
 
     const { error } = await supabase.from('tracks').delete().eq('id', trackId);
