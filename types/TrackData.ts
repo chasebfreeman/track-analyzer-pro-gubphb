@@ -1,10 +1,12 @@
-// types/TrackData.ts
+﻿// types/TrackData.ts
 
 export interface LaneReading {
   trackTemp: string;
   uvIndex: string;
   kegSL: string;
   kegOut: string;
+  keg60: string;
+  keg100: string;
   grippoSL: string;
   grippoOut: string;
   shine: string;

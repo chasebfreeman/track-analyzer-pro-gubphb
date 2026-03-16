@@ -1,4 +1,4 @@
-// app/(tabs)/record.tsx
+﻿// app/(tabs)/record.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -75,6 +75,8 @@ function getEmptyLaneReading(): LaneReading {
     uvIndex: '',
     kegSL: '',
     kegOut: '',
+    keg60: '',
+    keg100: '',
     grippoSL: '',
     grippoOut: '',
     shine: '',
@@ -190,8 +192,8 @@ export default function RecordScreen() {
         setSelectedTrack(tFromTracks ?? selectedTrack ?? null);
         setSession(r.session ?? '');
         setPair(r.pair ?? '');
-        setLeftLane({ ...r.leftLane, imageUri: undefined });
-        setRightLane({ ...r.rightLane, imageUri: undefined });
+        setLeftLane({ ...getEmptyLaneReading(), ...r.leftLane, imageUri: undefined });
+        setRightLane({ ...getEmptyLaneReading(), ...r.rightLane, imageUri: undefined });
       } catch (e) {
         console.error('Edit load error:', e);
         Alert.alert('Error', 'Failed to load reading');
@@ -339,7 +341,7 @@ export default function RecordScreen() {
               style={styles.input}
               value={lane.trackTemp}
               onChangeText={(text) => setLane({ ...lane, trackTemp: text })}
-              placeholder="�F"
+              placeholder="deg F"
               placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               returnKeyType="done"
@@ -348,25 +350,12 @@ export default function RecordScreen() {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>UV Index (Manual)</Text>
-            <TextInput
-              style={styles.input}
-              value={lane.uvIndex}
-              onChangeText={(text) => setLane({ ...lane, uvIndex: text })}
-              placeholder="0-11"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="numeric"
-              returnKeyType="done"
-              onSubmitEditing={() => Keyboard.dismiss()}
-              {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
-            />
-          </View>
+          <View style={styles.inputGroup} />
         </View>
 
         <View style={styles.inputRow}>
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Keg SL</Text>
+            <Text style={styles.inputLabel}>Keg @ Hit</Text>
             <TextInput
               style={styles.input}
               value={lane.kegSL}
@@ -381,7 +370,7 @@ export default function RecordScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Keg Out</Text>
+            <Text style={styles.inputLabel}>Keg @ 20'</Text>
             <TextInput
               style={styles.input}
               value={lane.kegOut}
@@ -398,7 +387,39 @@ export default function RecordScreen() {
 
         <View style={styles.inputRow}>
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Grippo SL</Text>
+            <Text style={styles.inputLabel}>Keg @ 60'</Text>
+            <TextInput
+              style={styles.input}
+              value={lane.keg60}
+              onChangeText={(text) => setLane({ ...lane, keg60: text })}
+              placeholder="Value"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+              {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Keg @ 100'</Text>
+            <TextInput
+              style={styles.input}
+              value={lane.keg100}
+              onChangeText={(text) => setLane({ ...lane, keg100: text })}
+              placeholder="Value"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+              {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+            />
+          </View>
+        </View>
+
+        <View style={styles.inputRow}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Grippo @ Hit</Text>
             <TextInput
               style={styles.input}
               value={lane.grippoSL}
@@ -413,7 +434,7 @@ export default function RecordScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Grippo Out</Text>
+            <Text style={styles.inputLabel}>Grippo @ 20'</Text>
             <TextInput
               style={styles.input}
               value={lane.grippoOut}
@@ -428,18 +449,35 @@ export default function RecordScreen() {
           </View>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Shine</Text>
-          <TextInput
-            style={styles.input}
-            value={lane.shine}
-            onChangeText={(text) => setLane({ ...lane, shine: text })}
-            placeholder="Value"
-            placeholderTextColor={colors.textSecondary}
-            returnKeyType="done"
-            onSubmitEditing={() => Keyboard.dismiss()}
-            {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
-          />
+        <View style={styles.inputRow}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>UV Index (Manual)</Text>
+            <TextInput
+              style={styles.input}
+              value={lane.uvIndex}
+              onChangeText={(text) => setLane({ ...lane, uvIndex: text })}
+              placeholder="0-11"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+              {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Shine</Text>
+            <TextInput
+              style={styles.input}
+              value={lane.shine}
+              onChangeText={(text) => setLane({ ...lane, shine: text })}
+              placeholder="Value"
+              placeholderTextColor={colors.textSecondary}
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+              {...(Platform.OS === 'ios' && { inputAccessoryViewID: INPUT_ACCESSORY_VIEW_ID })}
+            />
+          </View>
         </View>
 
         <View style={styles.inputGroup}>
@@ -677,3 +715,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     doneButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
   });
 }
+
+
+

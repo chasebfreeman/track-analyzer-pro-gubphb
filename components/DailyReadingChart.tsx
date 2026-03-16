@@ -1,4 +1,4 @@
-
+﻿
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
@@ -135,10 +135,10 @@ export default function DailyReadingChart({ readings, date }: DailyReadingChartP
         Average of Left and Right Lanes
       </Text>
       
-      {renderChart('Keg SL', kegSLData, '#007bff', '')}
-      {renderChart('Grippo SL', grippoSLData, '#28a745', '')}
+      {renderChart('Keg @ Hit', kegSLData, '#007bff', '')}
+      {renderChart('Grippo @ Hit', grippoSLData, '#28a745', '')}
       {renderChart('UV Index', uvIndexData, '#ffc107', '')}
-      {renderChart('Track Temp', trackTempData, '#dc3545', '°F')}
+      {renderChart('Track Temp', trackTempData, '#dc3545', 'Â°F')}
     </View>
   );
 }
@@ -178,3 +178,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

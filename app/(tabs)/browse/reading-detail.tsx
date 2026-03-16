@@ -1,4 +1,4 @@
-// app/(tabs)/browse/reading-detail.tsx
+ï»¿// app/(tabs)/browse/reading-detail.tsx
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
@@ -87,11 +87,11 @@ export default function ReadingDetailScreen() {
 
   const fmtNum = (n: any, digits = 1) => {
     const v = typeof n === 'number' ? n : Number(n);
-    return Number.isFinite(v) ? v.toFixed(digits) : '—';
+    return Number.isFinite(v) ? v.toFixed(digits) : 'â€”';
   };
 
   const fmtTs = (ts?: string) => {
-    if (!ts) return '—';
+    if (!ts) return 'â€”';
     const d = new Date(ts);
     if (Number.isNaN(d.getTime())) return ts;
     return d.toLocaleString('en-US', {
@@ -123,7 +123,7 @@ export default function ReadingDetailScreen() {
 
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Temp (°F)</Text>
+            <Text style={styles.dataLabel}>Temp (deg F)</Text>
             <Text style={styles.dataValue}>{fmtNum(r.temp_f, 1)}</Text>
           </View>
 
@@ -172,6 +172,20 @@ export default function ReadingDetailScreen() {
   };
 
   const renderLaneData = (lane: LaneReading, title: string) => {
+    const completeLane = {
+      trackTemp: '',
+      uvIndex: '',
+      kegSL: '',
+      kegOut: '',
+      keg60: '',
+      keg100: '',
+      grippoSL: '',
+      grippoOut: '',
+      shine: '',
+      notes: '',
+      ...lane,
+    };
+
     return (
       <View style={styles.laneSection}>
         <Text style={styles.laneTitle}>{title}</Text>
@@ -179,52 +193,64 @@ export default function ReadingDetailScreen() {
         <View style={styles.dataRow}>
           <View style={styles.dataItem}>
             <Text style={styles.dataLabel}>Track Temp</Text>
-            <Text style={styles.dataValue}>{lane.trackTemp || 'N/A'}</Text>
-          </View>
-
-          <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>UV Index (Manual)</Text>
-            <Text style={styles.dataValue}>{lane.uvIndex || 'N/A'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.dataRow}>
-          <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Keg SL</Text>
-            <Text style={styles.dataValue}>{lane.kegSL || 'N/A'}</Text>
-          </View>
-
-          <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Keg Out</Text>
-            <Text style={styles.dataValue}>{lane.kegOut || 'N/A'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.dataRow}>
-          <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Grippo SL</Text>
-            <Text style={styles.dataValue}>{lane.grippoSL || 'N/A'}</Text>
-          </View>
-
-          <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Grippo Out</Text>
-            <Text style={styles.dataValue}>{lane.grippoOut || 'N/A'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.dataRow}>
-          <View style={styles.dataItem}>
-            <Text style={styles.dataLabel}>Shine</Text>
-            <Text style={styles.dataValue}>{lane.shine || 'N/A'}</Text>
+            <Text style={styles.dataValue}>{completeLane.trackTemp || 'N/A'}</Text>
           </View>
 
           <View style={styles.dataItem} />
         </View>
 
-        {lane.notes ? (
+        <View style={styles.dataRow}>
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Keg @ Hit</Text>
+            <Text style={styles.dataValue}>{completeLane.kegSL || 'N/A'}</Text>
+          </View>
+
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Keg @ 20'</Text>
+            <Text style={styles.dataValue}>{completeLane.kegOut || 'N/A'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.dataRow}>
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Keg @ 60'</Text>
+            <Text style={styles.dataValue}>{completeLane.keg60 || 'N/A'}</Text>
+          </View>
+
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Keg @ 100'</Text>
+            <Text style={styles.dataValue}>{completeLane.keg100 || 'N/A'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.dataRow}>
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Grippo @ Hit</Text>
+            <Text style={styles.dataValue}>{completeLane.grippoSL || 'N/A'}</Text>
+          </View>
+
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Grippo @ 20'</Text>
+            <Text style={styles.dataValue}>{completeLane.grippoOut || 'N/A'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.dataRow}>
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>UV Index (Manual)</Text>
+            <Text style={styles.dataValue}>{completeLane.uvIndex || 'N/A'}</Text>
+          </View>
+
+          <View style={styles.dataItem}>
+            <Text style={styles.dataLabel}>Shine</Text>
+            <Text style={styles.dataValue}>{completeLane.shine || 'N/A'}</Text>
+          </View>
+        </View>
+
+        {completeLane.notes ? (
           <View style={styles.notesSection}>
             <Text style={styles.dataLabel}>Notes</Text>
-            <Text style={styles.notesText}>{lane.notes}</Text>
+            <Text style={styles.notesText}>{completeLane.notes}</Text>
           </View>
         ) : null}
       </View>

@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
@@ -206,22 +206,22 @@ export default function EnhancedDailyChart({ readings, date, trackId }: Enhanced
           { data: trackTempData, color: '#dc3545', label: 'Track Temp' },
           ...(weatherData.length > 0 ? [{ data: outsideTempData, color: '#ff8c00', label: 'Outside Temp' }] : []),
         ],
-        '°F'
+        'Â°F'
       )}
 
       {/* UV Index Chart */}
       {renderChart('UV Index', [{ data: uvIndexData, color: '#ffc107', label: 'UV Index' }], '')}
 
-      {/* Keg SL Chart */}
-      {renderChart('Keg SL', [{ data: kegSLData, color: '#007bff', label: 'Keg SL' }], '')}
+      {/* Keg @ Hit Chart */}
+      {renderChart('Keg @ Hit', [{ data: kegSLData, color: '#007bff', label: 'Keg @ Hit' }], '')}
 
-      {/* Grippo SL Chart */}
-      {renderChart('Grippo SL', [{ data: grippoSLData, color: '#28a745', label: 'Grippo SL' }], '')}
+      {/* Grippo @ Hit Chart */}
+      {renderChart('Grippo @ Hit', [{ data: grippoSLData, color: '#28a745', label: 'Grippo @ Hit' }], '')}
 
       {weatherData.length === 0 && !loading && (
         <View style={styles.weatherNote}>
           <Text style={[styles.weatherNoteText, { color: colors.textSecondary }]}>
-            💡 Tip: Add weather data to see outside temperature trends alongside track temperature
+            ðŸ’¡ Tip: Add weather data to see outside temperature trends alongside track temperature
           </Text>
         </View>
       )}
@@ -303,3 +303,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+

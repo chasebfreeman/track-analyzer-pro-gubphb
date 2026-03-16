@@ -1,4 +1,4 @@
-
+﻿
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
@@ -90,7 +90,7 @@ export default function HistoricalAveragesChart({
   };
 
   const data = {
-    labels: ['Keg SL', 'Grippo SL', 'UV Index', 'Track Temp'],
+    labels: ['Keg @ Hit', 'Grippo @ Hit', 'UV Index', 'Track Temp'],
     datasets: [
       {
         data: [
@@ -115,7 +115,7 @@ export default function HistoricalAveragesChart({
       <View style={styles.statsContainer}>
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-            Avg Keg SL
+            Avg Keg @ Hit
           </Text>
           <Text style={[styles.statValue, { color: '#007bff' }]}>
             {averages.kegSL.toFixed(1)}
@@ -124,7 +124,7 @@ export default function HistoricalAveragesChart({
 
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-            Avg Grippo SL
+            Avg Grippo @ Hit
           </Text>
           <Text style={[styles.statValue, { color: '#28a745' }]}>
             {averages.grippoSL.toFixed(1)}
@@ -145,7 +145,7 @@ export default function HistoricalAveragesChart({
             Avg Track Temp
           </Text>
           <Text style={[styles.statValue, { color: '#dc3545' }]}>
-            {averages.trackTemp.toFixed(1)}°F
+            {averages.trackTemp.toFixed(1)}Â°F
           </Text>
         </View>
       </View>
@@ -221,3 +221,4 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 });
+
