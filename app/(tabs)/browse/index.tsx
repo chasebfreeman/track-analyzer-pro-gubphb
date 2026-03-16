@@ -1,24 +1,33 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
   Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect, Stack } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { Track, TrackReading, DayReadings } from '@/types/TrackData';
+import GraphBuilderCard from '@/components/GraphBuilderCard';
+import GraphPointDetailsSheet from '@/components/GraphPointDetailsSheet';
+import ScatterPlotView from '@/components/ScatterPlotView';
+import { DayReadings, Track, TrackReading } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
+import { buildGraphPoints } from '@/utils/graphData';
+import { GraphFieldId, GraphLaneFilter, GraphPoint, getGraphFieldLabel } from '@/utils/graphFields';
+
+type BrowseMode = 'readings' | 'graphs';
 
 export default function BrowseScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
+  const [mode, setMode] = useState<BrowseMode>('readings');
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
@@ -28,8 +37,11 @@ export default function BrowseScreen() {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
+  const [xField, setXField] = useState<GraphFieldId>('trackTemp');
+  const [yField, setYField] = useState<GraphFieldId>('grippoSL');
+  const [laneFilter, setLaneFilter] = useState<GraphLaneFilter>('both');
+  const [selectedPoint, setSelectedPoint] = useState<GraphPoint | null>(null);
 
-  // Viewer-local fallback only (avoid using this for grouping if we have trackDate)
   const localDateKeyFromTimestamp = (ms: number) => {
     const d = new Date(ms);
     const y = d.getFullYear();
@@ -38,7 +50,6 @@ export default function BrowseScreen() {
     return `${y}-${m}-${day}`;
   };
 
-  // ✅ Track-local time string from timestamp + IANA timezone
   const formatTimeInTimeZone = (ms: number, timeZone: string) => {
     try {
       return new Intl.DateTimeFormat('en-US', {
@@ -58,7 +69,6 @@ export default function BrowseScreen() {
     }
   };
 
-  // ✅ Parse YYYY-MM-DD as a safe LOCAL date (for header label only)
   const formatDateWithDay = (dateString: string) => {
     const [y, m, d] = dateString.split('-').map(Number);
     const date = new Date(y, m - 1, d);
@@ -69,24 +79,18 @@ export default function BrowseScreen() {
     return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
-  const getDayKey = (reading: TrackReading) => {
-    return reading.trackDate || reading.date || localDateKeyFromTimestamp(reading.timestamp);
-  };
+  const getDayKey = (reading: TrackReading) => reading.trackDate || reading.date || localDateKeyFromTimestamp(reading.timestamp);
 
   const getDisplayTime = (reading: TrackReading) => {
-    if (reading.timeZone && reading.timestamp) {
-      return formatTimeInTimeZone(reading.timestamp, reading.timeZone);
-    }
+    if (reading.timeZone && reading.timestamp) return formatTimeInTimeZone(reading.timestamp, reading.timeZone);
     return reading.time;
   };
 
   const loadReadings = useCallback(async (trackId: string, year: number | null) => {
-    console.log('Loading readings for track:', trackId, 'year:', year);
     const trackReadings = await SupabaseStorageService.getReadingsForTrack(trackId, year || undefined);
-
     setReadings(trackReadings);
 
-    const grouped: { [date: string]: TrackReading[] } = {};
+    const grouped: Record<string, TrackReading[]> = {};
     trackReadings.forEach((reading) => {
       const key = getDayKey(reading);
       if (!grouped[key]) grouped[key] = [];
@@ -101,44 +105,30 @@ export default function BrowseScreen() {
       }));
 
     setGroupedReadings(dayReadings);
-    console.log('Grouped readings into', dayReadings.length, 'days');
   }, []);
 
   const loadTracks = useCallback(async () => {
-    console.log('Loading tracks for browse screen');
     const allTracks = await SupabaseStorageService.getAllTracks();
     setTracks(allTracks);
 
     if (allTracks.length > 0 && !selectedTrack) {
-      console.log('Auto-selecting first track');
       setSelectedTrack(allTracks[0]);
     }
   }, [selectedTrack]);
 
-  // ✅ FIX: years should be per-track
   const loadAvailableYears = useCallback(async () => {
-    console.log('Loading available years');
     const years = await SupabaseStorageService.getAvailableYears(selectedTrack?.id);
     setAvailableYears(years);
+    if (years.length > 0 && selectedYear === null) setSelectedYear(years[0]);
+  }, [selectedTrack?.id, selectedYear]);
 
-    if (years.length > 0 && selectedYear === null) {
-      console.log('Auto-selecting most recent year:', years[0]);
-      setSelectedYear(years[0]);
-    }
-  }, [selectedYear, selectedTrack?.id]);
-
-useFocusEffect(
-  useCallback(() => {
-    console.log('Browse screen focused');
-
-    loadTracks();
-    loadAvailableYears();
-
-    if (selectedTrack) {
-      loadReadings(selectedTrack.id, selectedYear);
-    }
-  }, [loadTracks, loadAvailableYears, loadReadings, selectedTrack, selectedYear])
-);
+  useFocusEffect(
+    useCallback(() => {
+      loadTracks();
+      loadAvailableYears();
+      if (selectedTrack) loadReadings(selectedTrack.id, selectedYear);
+    }, [loadTracks, loadAvailableYears, loadReadings, selectedTrack, selectedYear])
+  );
 
   useEffect(() => {
     loadTracks();
@@ -152,65 +142,86 @@ useFocusEffect(
   }, [selectedTrack, selectedYear, loadReadings]);
 
   const handleRefresh = async () => {
-    console.log('User pulled to refresh');
     setIsRefreshing(true);
     try {
       await loadTracks();
       await loadAvailableYears();
-      if (selectedTrack) {
-        await loadReadings(selectedTrack.id, selectedYear);
-      }
+      if (selectedTrack) await loadReadings(selectedTrack.id, selectedYear);
     } finally {
       setIsRefreshing(false);
     }
   };
 
+  const handleTrackSelect = (track: Track) => {
+    setSelectedTrack(track);
+    setShowTrackDropdown(false);
+    setSelectedYear(null);
+    setSelectedPoint(null);
+  };
+
   const handleReadingPress = (reading: TrackReading) => {
-    console.log('User tapped reading:', reading.id);
     router.push({
       pathname: '/(tabs)/browse/reading-detail',
       params: { readingId: reading.id, trackId: reading.trackId },
     });
   };
 
+  const handleOpenPointReading = (point: GraphPoint) => {
+    setSelectedPoint(null);
+    handleReadingPress(point.reading);
+  };
+
   const toggleDayExpansion = (date: string) => {
-    console.log('User toggled day expansion:', date);
-    const newExpanded = new Set(expandedDays);
-    if (newExpanded.has(date)) newExpanded.delete(date);
-    else newExpanded.add(date);
-    setExpandedDays(newExpanded);
+    setExpandedDays((current) => {
+      const next = new Set(current);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
   };
 
-  // ✅ FIX: reset year when changing tracks
-  const handleTrackSelect = (track: Track) => {
-    console.log('User selected track:', track.name);
-    setSelectedTrack(track);
-    setShowTrackDropdown(false);
-    setSelectedYear(null);
-  };
+  const graphPoints = useMemo(
+    () => buildGraphPoints({ readings, laneFilter, xField, yField }),
+    [readings, laneFilter, xField, yField]
+  );
 
-  const styles = getStyles(colors);
+  const summaryText = selectedTrack
+    ? `${selectedTrack.name} • ${selectedYear === null ? 'All Years' : selectedYear}`
+    : 'Choose a track to start exploring';
 
   return (
-    <React.Fragment>
+    <>
       <Stack.Screen options={{ headerShown: false }} />
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Browse Readings</Text>
+          <Text style={styles.headerTitle}>Browse</Text>
+          <Text style={styles.headerSubtitle}>
+            {mode === 'readings' ? 'Open saved runs and compare the day.' : 'Plot any two numeric fields against each other.'}
+          </Text>
+        </View>
+
+        <View style={styles.modeSwitcher}>
+          {([
+            ['readings', 'Readings'],
+            ['graphs', 'Graphs'],
+          ] as const).map(([value, label]) => {
+            const active = mode === value;
+            return (
+              <TouchableOpacity key={value} style={[styles.modeButton, active && styles.modeButtonActive]} onPress={() => setMode(value)}>
+                <Text style={[styles.modeButtonText, active && styles.modeButtonTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.yearFilter} contentContainerStyle={styles.yearFilterContent}>
-          <TouchableOpacity
-            key="all-years-filter"
-            style={[styles.yearChip, selectedYear === null && styles.yearChipActive]}
-            onPress={() => setSelectedYear(null)}
-          >
+          <TouchableOpacity style={[styles.yearChip, selectedYear === null && styles.yearChipActive]} onPress={() => setSelectedYear(null)}>
             <Text style={[styles.yearChipText, selectedYear === null && styles.yearChipTextActive]}>All Years</Text>
           </TouchableOpacity>
 
-          {availableYears.map((year, yearIndex) => (
+          {availableYears.map((year) => (
             <TouchableOpacity
-              key={`year-filter-${year}-${yearIndex}`}
+              key={`year-${year}`}
               style={[styles.yearChip, selectedYear === year && styles.yearChipActive]}
               onPress={() => setSelectedYear(year)}
             >
@@ -221,26 +232,30 @@ useFocusEffect(
 
         <View style={styles.trackSelector}>
           <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowTrackDropdown(true)}>
-            <Text style={styles.dropdownButtonText}>{selectedTrack ? selectedTrack.name : 'Choose a track...'}</Text>
-            <IconSymbol ios_icon_name="chevron.down" android_material_icon_name="arrow-downward" size={20} color={colors.text} />
+            <View>
+              <Text style={styles.dropdownButtonLabel}>Track</Text>
+              <Text style={styles.dropdownButtonText}>{selectedTrack ? selectedTrack.name : 'Choose a track...'}</Text>
+            </View>
+            <IconSymbol ios_icon_name="chevron.down" android_material_icon_name="arrow-drop-down" size={22} color={colors.text} />
           </TouchableOpacity>
+          <Text style={styles.selectorSummary}>{summaryText}</Text>
         </View>
 
         <ScrollView
-          style={styles.readingsList}
-          contentContainerStyle={styles.readingsListContent}
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
         >
-          {groupedReadings.length === 0 ? (
-            <View key="empty-state" style={styles.emptyState}>
-              <IconSymbol ios_icon_name="doc.text" android_material_icon_name="description" size={64} color={colors.textSecondary} />
-              <Text style={styles.emptyStateText}>No readings yet</Text>
-              <Text style={styles.emptyStateSubtext}>Record your first reading in the Record tab</Text>
-            </View>
-          ) : (
-            <>
-              {groupedReadings.map((day, dayIndex) => (
-                <View key={`day-${day.date}-${dayIndex}`} style={styles.dayGroup}>
+          {mode === 'readings' ? (
+            groupedReadings.length === 0 ? (
+              <View style={styles.emptyState}>
+                <IconSymbol ios_icon_name="doc.text" android_material_icon_name="description" size={64} color={colors.textSecondary} />
+                <Text style={styles.emptyStateText}>No readings yet</Text>
+                <Text style={styles.emptyStateSubtext}>Record your first reading in the Record tab.</Text>
+              </View>
+            ) : (
+              groupedReadings.map((day) => (
+                <View key={day.date} style={styles.dayGroup}>
                   <TouchableOpacity style={styles.dayHeader} onPress={() => toggleDayExpansion(day.date)}>
                     <View>
                       <Text style={styles.dayDate}>{formatDateWithDay(day.date)}</Text>
@@ -248,45 +263,60 @@ useFocusEffect(
                     </View>
                     <IconSymbol
                       ios_icon_name={expandedDays.has(day.date) ? 'chevron.up' : 'chevron.down'}
-                      android_material_icon_name={expandedDays.has(day.date) ? 'arrow-upward' : 'arrow-downward'}
-                      size={20}
+                      android_material_icon_name={expandedDays.has(day.date) ? 'arrow-drop-up' : 'arrow-drop-down'}
+                      size={24}
                       color={colors.textSecondary}
                     />
                   </TouchableOpacity>
 
-                  {expandedDays.has(day.date) && (
-                    <View style={styles.expandedContent}>
-                      <View style={styles.readingsContainer}>
-                        {day.readings.map((reading, readingIndex) => (
-                          <TouchableOpacity
-                            key={`reading-${reading.id}-${readingIndex}`}
-                            style={styles.readingCard}
-                            onPress={() => handleReadingPress(reading)}
-                          >
-                            <View style={styles.readingHeader}>
-                              <IconSymbol ios_icon_name="clock" android_material_icon_name="access-time" size={16} color={colors.primary} />
+                  {expandedDays.has(day.date) ? (
+                    <View style={styles.readingsContainer}>
+                      {day.readings.map((reading) => (
+                        <TouchableOpacity key={reading.id} style={styles.readingCard} onPress={() => handleReadingPress(reading)}>
+                          <View style={styles.readingHeader}>
+                            <View>
                               <Text style={styles.readingTime}>{getDisplayTime(reading)}</Text>
+                              <Text style={styles.readingMeta}>{reading.session ? `Session ${reading.session}` : 'Tap for details'}</Text>
                             </View>
+                            <IconSymbol ios_icon_name="chevron.right" android_material_icon_name="arrow-forward" size={18} color={colors.textSecondary} />
+                          </View>
 
-                            <View style={styles.readingData}>
-                              <Text style={styles.readingDataText}>Left: {reading.leftLane.trackTemp}°F, UV {reading.leftLane.uvIndex}</Text>
-                              <Text style={styles.readingDataText}>Right: {reading.rightLane.trackTemp}°F, UV {reading.rightLane.uvIndex}</Text>
-                            </View>
-
-                            <IconSymbol
-                              ios_icon_name="chevron.right"
-                              android_material_icon_name="arrow-forward"
-                              size={16}
-                              color={colors.textSecondary}
-                              style={styles.readingChevron}
-                            />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
+                          <View style={styles.readingData}>
+                            <Text style={styles.readingDataText}>Left: {reading.leftLane.trackTemp || 'N/A'} F, UV {reading.leftLane.uvIndex || 'N/A'}</Text>
+                            <Text style={styles.readingDataText}>Right: {reading.rightLane.trackTemp || 'N/A'} F, UV {reading.rightLane.uvIndex || 'N/A'}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
                     </View>
-                  )}
+                  ) : null}
                 </View>
-              ))}
+              ))
+            )
+          ) : (
+            <>
+              <GraphBuilderCard
+                xField={xField}
+                yField={yField}
+                laneFilter={laneFilter}
+                onChangeXField={setXField}
+                onChangeYField={setYField}
+                onChangeLaneFilter={setLaneFilter}
+                onSwapAxes={() => {
+                  const prevX = xField;
+                  setXField(yField);
+                  setYField(prevX);
+                }}
+              />
+
+              <View style={styles.graphSummaryCard}>
+                <Text style={styles.graphSummaryTitle}>Current View</Text>
+                <Text style={styles.graphSummaryText}>
+                  {getGraphFieldLabel(yField)} plotted against {getGraphFieldLabel(xField)} using {laneFilter === 'both' ? 'both lanes' : `${laneFilter} lane`}.
+                </Text>
+                <Text style={styles.graphSummaryCount}>{graphPoints.length} point(s) available</Text>
+              </View>
+
+              <ScatterPlotView points={graphPoints} xLabel={getGraphFieldLabel(xField)} yLabel={getGraphFieldLabel(yField)} onSelectPoint={setSelectedPoint} />
             </>
           )}
         </ScrollView>
@@ -302,79 +332,138 @@ useFocusEffect(
               </View>
 
               <ScrollView style={styles.dropdownList}>
-                {tracks.map((track, index) => (
+                {tracks.map((track) => (
                   <TouchableOpacity
-                    key={`track-dropdown-${track.id}-${index}`}
+                    key={track.id}
                     style={[styles.dropdownItem, selectedTrack?.id === track.id && styles.dropdownItemActive]}
                     onPress={() => handleTrackSelect(track)}
                   >
                     <Text style={[styles.dropdownItemText, selectedTrack?.id === track.id && styles.dropdownItemTextActive]}>{track.name}</Text>
-                    {selectedTrack?.id === track.id && <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={20} color={colors.primary} />}
+                    {selectedTrack?.id === track.id ? (
+                      <IconSymbol ios_icon_name="checkmark" android_material_icon_name="check" size={20} color={colors.primary} />
+                    ) : null}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
           </TouchableOpacity>
         </Modal>
+
+        <GraphPointDetailsSheet point={selectedPoint} visible={!!selectedPoint} onClose={() => setSelectedPoint(null)} onOpenReading={handleOpenPointReading} />
       </SafeAreaView>
-    </React.Fragment>
+    </>
   );
 }
 
 function getStyles(colors: ReturnType<typeof useThemeColors>) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { paddingHorizontal: 20, paddingVertical: 16 },
+    header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 },
     headerTitle: { fontSize: 32, fontWeight: 'bold', color: colors.text },
-    yearFilter: { maxHeight: 50, marginBottom: 12 },
+    headerSubtitle: { fontSize: 14, color: colors.textSecondary, marginTop: 6 },
+    modeSwitcher: {
+      marginHorizontal: 20,
+      marginBottom: 12,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 6,
+      flexDirection: 'row',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    modeButton: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+    modeButtonActive: { backgroundColor: colors.primary },
+    modeButtonText: { color: colors.textSecondary, fontWeight: '700', fontSize: 15 },
+    modeButtonTextActive: { color: '#FFFFFF' },
+    yearFilter: { maxHeight: 48, marginBottom: 12 },
     yearFilterContent: { paddingHorizontal: 20, gap: 8 },
     yearChip: {
       paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingVertical: 9,
+      borderRadius: 999,
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.border,
     },
     yearChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-    yearChipText: { fontSize: 14, color: colors.text, fontWeight: '500' },
+    yearChipText: { color: colors.text, fontWeight: '600' },
     yearChipTextActive: { color: '#FFFFFF' },
-    trackSelector: { paddingHorizontal: 20, marginBottom: 16 },
+    trackSelector: { paddingHorizontal: 20, marginBottom: 12 },
     dropdownButton: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    dropdownButtonLabel: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginBottom: 2 },
+    dropdownButtonText: { fontSize: 16, color: colors.text, fontWeight: '600' },
+    selectorSummary: { marginTop: 8, fontSize: 13, color: colors.textSecondary },
+    content: { flex: 1 },
+    contentContainer: { paddingHorizontal: 20, paddingBottom: 140 },
+    emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 80 },
+    emptyStateText: { fontSize: 20, fontWeight: '700', color: colors.text, marginTop: 16 },
+    emptyStateSubtext: { fontSize: 14, color: colors.textSecondary, marginTop: 8, textAlign: 'center' },
+    dayGroup: { marginBottom: 16 },
+    dayHeader: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dayDate: { fontSize: 16, fontWeight: '700', color: colors.text },
+    dayCount: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+    readingsContainer: { marginTop: 10, gap: 10 },
+    readingCard: {
       backgroundColor: colors.card,
-      borderRadius: 12,
+      borderRadius: 16,
       padding: 16,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    dropdownButtonText: { fontSize: 16, color: colors.text, fontWeight: '500' },
+    readingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    readingTime: { fontSize: 16, fontWeight: '700', color: colors.text },
+    readingMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
+    readingData: { gap: 4 },
+    readingDataText: { fontSize: 14, color: colors.textSecondary },
+    graphSummaryCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 16,
+    },
+    graphSummaryTitle: { color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 8 },
+    graphSummaryText: { color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
+    graphSummaryCount: { color: colors.primary, fontSize: 14, fontWeight: '700', marginTop: 10 },
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'center',
       alignItems: 'center',
       padding: 20,
     },
-    dropdownModal: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      width: '100%',
-      maxHeight: '70%',
-      overflow: 'hidden',
-    },
+    dropdownModal: { backgroundColor: colors.card, borderRadius: 18, width: '100%', maxHeight: '70%', overflow: 'hidden' },
     dropdownHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: 20,
+      padding: 18,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    dropdownTitle: { fontSize: 20, fontWeight: '600', color: colors.text },
-    dropdownList: { maxHeight: 400 },
+    dropdownTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+    dropdownList: { maxHeight: 420 },
     dropdownItem: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -385,37 +474,6 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
     },
     dropdownItemActive: { backgroundColor: colors.background },
     dropdownItemText: { fontSize: 16, color: colors.text },
-    dropdownItemTextActive: { fontWeight: '600', color: colors.primary },
-    readingsList: { flex: 1 },
-    readingsListContent: { padding: 20, paddingBottom: 140 },
-    dayGroup: { marginBottom: 16 },
-    dayHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
-    },
-    dayDate: { fontSize: 16, fontWeight: '600', color: colors.text },
-    dayCount: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
-    expandedContent: { marginTop: 8 },
-    readingsContainer: { marginTop: 8, gap: 8 },
-    readingCard: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
-      borderLeftWidth: 4,
-      borderLeftColor: colors.primary,
-    },
-    readingHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-    readingTime: { fontSize: 16, fontWeight: '600', color: colors.text, marginLeft: 8 },
-    readingData: { gap: 4 },
-    readingDataText: { fontSize: 14, color: colors.textSecondary },
-    readingChevron: { position: 'absolute', right: 16, top: '50%', marginTop: -8 },
-    emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
-    emptyStateText: { fontSize: 20, fontWeight: '600', color: colors.text, marginTop: 16 },
-    emptyStateSubtext: { fontSize: 14, color: colors.textSecondary, marginTop: 8, textAlign: 'center' },
+    dropdownItemTextActive: { fontWeight: '700', color: colors.primary },
   });
 }
-
