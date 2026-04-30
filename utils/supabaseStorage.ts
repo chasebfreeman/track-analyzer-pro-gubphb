@@ -1,6 +1,7 @@
 // utils/supabaseStorage.ts
 
 import * as FileSystem from 'expo-file-system/legacy';
+import { notifyReadingCreated } from './pushNotifications';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Track, TrackReading, LaneReading, TrackPhoto } from '@/types/TrackData';
 
@@ -314,6 +315,12 @@ export class SupabaseStorageService {
     if (error || !data) {
       console.error('Error creating reading:', error);
       return null;
+    }
+
+    try {
+      await notifyReadingCreated(data.id);
+    } catch (notificationError) {
+      console.error('Reading saved, but notification delivery failed to start:', notificationError);
     }
 
     return this.getReadingById(data.id);

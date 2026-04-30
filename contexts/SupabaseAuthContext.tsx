@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import { unregisterCurrentPushTokenForUser } from '@/utils/pushNotifications';
 import { supabase, isSupabaseConfigured } from '@/utils/supabase';
 
 interface SupabaseAuthContextType {
@@ -128,6 +129,9 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
   const signOut = async () => {
     console.log('User signing out');
     try {
+      if (user?.id) {
+        await unregisterCurrentPushTokenForUser(user.id);
+      }
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Error signing out:', error);

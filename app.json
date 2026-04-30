@@ -57,6 +57,12 @@
     "plugins": [
       "expo-font",
       "expo-router",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
+      ],
       "expo-web-browser",
       [
         "expo-image-picker",

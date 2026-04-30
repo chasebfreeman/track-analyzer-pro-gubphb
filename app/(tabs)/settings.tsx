@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
-  Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
 import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { usePushNotifications } from '@/contexts/PushNotificationsContext';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { supabase } from '@/utils/supabase';
 import * as Application from 'expo-application';
@@ -22,7 +23,33 @@ export default function SettingsScreen() {
   const colors = useThemeColors();
   const router = useRouter();
   const { user, signOut } = useSupabaseAuth();
+  const {
+    isSupported: isPushSupported,
+    isLoading: isPushLoading,
+    permissionStatus: pushPermissionStatus,
+    isEnabled: isPushEnabled,
+    statusMessage: pushStatusMessage,
+    enablePushNotifications,
+    disablePushNotifications,
+    refreshPushNotifications,
+  } = usePushNotifications();
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const pushStatusLabel = !isPushSupported
+    ? 'Unavailable'
+    : isPushEnabled
+      ? 'On'
+      : pushPermissionStatus === 'denied'
+        ? 'Blocked'
+        : 'Off';
+
+  const pushActionLabel = !isPushSupported
+    ? 'Refresh'
+    : isPushEnabled
+      ? 'Turn Off'
+      : pushPermissionStatus === 'denied'
+        ? 'Open Settings'
+        : 'Turn On';
 
   const handleLogout = () => {
     console.log('User tapped Logout button');
@@ -88,7 +115,7 @@ export default function SettingsScreen() {
     );
   };
 
- const performAccountDeletion = async () => {
+const performAccountDeletion = async () => {
   console.log('User confirmed account deletion - starting deletion process');
   setIsDeleting(true);
 
@@ -131,6 +158,37 @@ export default function SettingsScreen() {
   }
 }; 
 
+  const handlePushAction = async () => {
+    if (!isPushSupported) {
+      await refreshPushNotifications();
+      return;
+    }
+
+    if (isPushEnabled) {
+      await disablePushNotifications();
+      return;
+    }
+
+    if (pushPermissionStatus === 'denied') {
+      Alert.alert(
+        'Enable Notifications',
+        'Push notifications are currently blocked for this device. Open your device settings to allow them, then come back and refresh the status.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => {
+              void Linking.openSettings();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    await enablePushNotifications();
+  };
+
   const styles = getStyles(colors);
 
   return (
@@ -157,6 +215,62 @@ export default function SettingsScreen() {
                   <Text style={styles.infoLabel}>Email</Text>
                   <Text style={styles.infoValue}>{user?.email || 'Not available'}</Text>
                 </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Notifications</Text>
+
+            <View style={styles.card}>
+              <View style={styles.infoRow}>
+                <IconSymbol
+                  ios_icon_name="bell.badge"
+                  android_material_icon_name="notifications-active"
+                  size={24}
+                  color={colors.primary}
+                />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>New reading alerts</Text>
+                  <Text style={styles.infoValue}>{pushStatusLabel}</Text>
+                  <Text style={styles.supportingText}>
+                    {pushStatusMessage || 'Get a push notification when a teammate saves a new reading.'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.notificationActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.notificationButton,
+                    isPushEnabled ? styles.notificationButtonSecondary : styles.notificationButtonPrimary,
+                  ]}
+                  onPress={handlePushAction}
+                  disabled={isPushLoading}
+                >
+                  {isPushLoading ? (
+                    <ActivityIndicator color={isPushEnabled ? colors.text : '#FFFFFF'} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.notificationButtonText,
+                        isPushEnabled && styles.notificationButtonSecondaryText,
+                      ]}
+                    >
+                      {pushActionLabel}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.notificationRefreshButton}
+                  onPress={refreshPushNotifications}
+                  disabled={isPushLoading}
+                >
+                  <Text style={styles.notificationRefreshButtonText}>Refresh</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -334,6 +448,55 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.text,
       lineHeight: 24,
       marginBottom: 8,
+    },
+    supportingText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginTop: 6,
+    },
+    notificationActions: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    notificationButton: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+    },
+    notificationButtonPrimary: {
+      backgroundColor: colors.primary,
+    },
+    notificationButtonSecondary: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    notificationButtonText: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    notificationButtonSecondaryText: {
+      color: colors.text,
+    },
+    notificationRefreshButton: {
+      minHeight: 44,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      backgroundColor: colors.background,
+    },
+    notificationRefreshButtonText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '600',
     },
     logoutButton: {
       flexDirection: 'row',
