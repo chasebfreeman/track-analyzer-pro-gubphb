@@ -6,6 +6,7 @@ import { useSupabaseAuth } from './SupabaseAuthContext';
 import {
   disablePushNotificationsForUser,
   enablePushNotificationsForUser,
+  getPushRegistrationErrorSnapshot,
   PushPermissionStatus,
   PushRegistrationSnapshot,
   syncPushRegistration,
@@ -111,7 +112,7 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
         console.error('Failed refreshing push notification status:', error);
 
         if (!isCancelled) {
-          setStatusMessage('Unable to refresh push notification status right now.');
+          applySnapshot(getPushRegistrationErrorSnapshot(error));
         }
       } finally {
         if (!isCancelled) {
@@ -136,7 +137,7 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
       applySnapshot(snapshot);
     } catch (error) {
       console.error('Failed enabling push notifications:', error);
-      setStatusMessage('Unable to enable push notifications right now.');
+      applySnapshot(getPushRegistrationErrorSnapshot(error));
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +152,7 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
       applySnapshot(snapshot);
     } catch (error) {
       console.error('Failed disabling push notifications:', error);
-      setStatusMessage('Unable to disable push notifications right now.');
+      applySnapshot(getPushRegistrationErrorSnapshot(error));
     } finally {
       setIsLoading(false);
     }
@@ -169,7 +170,7 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
       applySnapshot(snapshot);
     } catch (error) {
       console.error('Failed refreshing push notifications:', error);
-      setStatusMessage('Unable to refresh push notification status right now.');
+      applySnapshot(getPushRegistrationErrorSnapshot(error));
     } finally {
       setIsLoading(false);
     }
