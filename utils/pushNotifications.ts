@@ -19,6 +19,17 @@ export interface PushRegistrationSnapshot {
   message?: string;
 }
 
+function getRawErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') return message;
+  }
+
+  return '';
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldPlaySound: true,
@@ -55,6 +66,68 @@ function getUnsupportedSnapshot(message: string): PushRegistrationSnapshot {
     notificationsEnabled: false,
     expoPushToken: null,
     message,
+  };
+}
+
+export function getPushRegistrationErrorSnapshot(error: unknown): PushRegistrationSnapshot {
+  const rawMessage = getRawErrorMessage(error).trim();
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (
+    normalizedMessage.includes('push_tokens') &&
+    (normalizedMessage.includes('does not exist') || normalizedMessage.includes('schema cache'))
+  ) {
+    return {
+      supported: true,
+      permissionStatus: 'undetermined',
+      notificationsEnabled: false,
+      expoPushToken: null,
+      message: 'Push notifications need the latest Supabase migration before this device can register.',
+    };
+  }
+
+  if (
+    normalizedMessage.includes('native module') ||
+    normalizedMessage.includes('expo-notifications') ||
+    normalizedMessage.includes('unimodules')
+  ) {
+    return getUnsupportedSnapshot(
+      'This app build does not include native notification support yet. Install the latest build and try again.'
+    );
+  }
+
+  if (
+    normalizedMessage.includes('apns') ||
+    normalizedMessage.includes('aps-environment') ||
+    normalizedMessage.includes('no valid aps-environment entitlement string')
+  ) {
+    return getUnsupportedSnapshot(
+      'iPhone push credentials are not fully configured for this build yet. Finish the Apple/EAS push setup and rebuild.'
+    );
+  }
+
+  if (normalizedMessage.includes('projectid') || normalizedMessage.includes('experienceid')) {
+    return getUnsupportedSnapshot(
+      'This build is missing the Expo project ID needed to register for push notifications.'
+    );
+  }
+
+  if (normalizedMessage.includes('network') || normalizedMessage.includes('connection')) {
+    return {
+      supported: true,
+      permissionStatus: 'undetermined',
+      notificationsEnabled: false,
+      expoPushToken: null,
+      message: 'Push notifications could not be checked because the network request failed. Try again in a moment.',
+    };
+  }
+
+  return {
+    supported: true,
+    permissionStatus: 'undetermined',
+    notificationsEnabled: false,
+    expoPushToken: null,
+    message: rawMessage || 'Push notifications could not be initialized right now.',
   };
 }
 
@@ -102,91 +175,96 @@ export async function syncPushRegistration(params: {
 }): Promise<PushRegistrationSnapshot> {
   const { userId, requestPermissions = false } = params;
 
-  if (!isSupabaseConfigured()) {
-    return getUnsupportedSnapshot('Push notifications are unavailable until Supabase is configured.');
-  }
+  try {
+    if (!isSupabaseConfigured()) {
+      return getUnsupportedSnapshot('Push notifications are unavailable until Supabase is configured.');
+    }
 
-  if (Platform.OS === 'web') {
-    return getUnsupportedSnapshot('Push notifications are only available in iOS and Android app builds.');
-  }
+    if (Platform.OS === 'web') {
+      return getUnsupportedSnapshot('Push notifications are only available in iOS and Android app builds.');
+    }
 
-  if (!Device.isDevice) {
-    return getUnsupportedSnapshot('Push notifications require a physical device.');
-  }
+    if (!Device.isDevice) {
+      return getUnsupportedSnapshot('Push notifications require a physical device.');
+    }
 
-  await ensureAndroidNotificationChannel();
+    await ensureAndroidNotificationChannel();
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = normalizePermissionStatus(existingStatus);
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = normalizePermissionStatus(existingStatus);
 
-  if (requestPermissions && finalStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync({
-      ios: {
-        allowAlert: true,
-        allowBadge: true,
-        allowSound: true,
+    if (requestPermissions && finalStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+        },
+      });
+
+      finalStatus = normalizePermissionStatus(status);
+    }
+
+    if (finalStatus !== 'granted') {
+      await updateCurrentInstallationEnabledState(userId, false);
+
+      return {
+        supported: true,
+        permissionStatus: finalStatus,
+        notificationsEnabled: false,
+        expoPushToken: null,
+        message:
+          finalStatus === 'denied'
+            ? 'Notifications are turned off for this device. Enable them in system settings to receive updates.'
+            : 'Notifications have not been enabled on this device yet.',
+      };
+    }
+
+    const projectId = getProjectId();
+    if (!projectId) {
+      return getUnsupportedSnapshot('Missing EAS project ID in Expo config.');
+    }
+
+    const expoPushToken = (
+      await Notifications.getExpoPushTokenAsync({
+        projectId,
+      })
+    ).data;
+
+    const installationId = await getPushInstallationId();
+    const deviceName = Device.deviceName ?? Device.modelName ?? `${Platform.OS} device`;
+
+    const { error } = await supabase.from('push_tokens').upsert(
+      {
+        user_id: userId,
+        installation_id: installationId,
+        expo_push_token: expoPushToken,
+        platform: Platform.OS,
+        device_name: deviceName,
+        notifications_enabled: true,
+        last_seen_at: new Date().toISOString(),
       },
-    });
+      {
+        onConflict: 'installation_id',
+      }
+    );
 
-    finalStatus = normalizePermissionStatus(status);
-  }
-
-  if (finalStatus !== 'granted') {
-    await updateCurrentInstallationEnabledState(userId, false);
+    if (error) {
+      console.error('Failed saving Expo push token:', error);
+      return getPushRegistrationErrorSnapshot(error);
+    }
 
     return {
       supported: true,
-      permissionStatus: finalStatus,
-      notificationsEnabled: false,
-      expoPushToken: null,
-      message:
-        finalStatus === 'denied'
-          ? 'Notifications are turned off for this device. Enable them in system settings to receive updates.'
-          : 'Notifications have not been enabled on this device yet.',
+      permissionStatus: 'granted',
+      notificationsEnabled: true,
+      expoPushToken,
+      message: 'This device is ready to receive push notifications.',
     };
+  } catch (error) {
+    console.error('Push notification sync failed:', error);
+    return getPushRegistrationErrorSnapshot(error);
   }
-
-  const projectId = getProjectId();
-  if (!projectId) {
-    return getUnsupportedSnapshot('Missing EAS project ID in Expo config.');
-  }
-
-  const expoPushToken = (
-    await Notifications.getExpoPushTokenAsync({
-      projectId,
-    })
-  ).data;
-
-  const installationId = await getPushInstallationId();
-  const deviceName = Device.deviceName ?? Device.modelName ?? `${Platform.OS} device`;
-
-  const { error } = await supabase.from('push_tokens').upsert(
-    {
-      user_id: userId,
-      installation_id: installationId,
-      expo_push_token: expoPushToken,
-      platform: Platform.OS,
-      device_name: deviceName,
-      notifications_enabled: true,
-      last_seen_at: new Date().toISOString(),
-    },
-    {
-      onConflict: 'installation_id',
-    }
-  );
-
-  if (error) {
-    console.error('Failed saving Expo push token:', error);
-    throw error;
-  }
-
-  return {
-    supported: true,
-    permissionStatus: 'granted',
-    notificationsEnabled: true,
-    expoPushToken,
-    message: 'This device is ready to receive push notifications.',
-  };
 }
 
 export async function enablePushNotificationsForUser(userId: string) {

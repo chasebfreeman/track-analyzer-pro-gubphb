@@ -44,12 +44,14 @@ export default function SettingsScreen() {
         : 'Off';
 
   const pushActionLabel = !isPushSupported
-    ? 'Refresh'
+    ? 'Try Again'
     : isPushEnabled
       ? 'Turn Off'
       : pushPermissionStatus === 'denied'
         ? 'Open Settings'
         : 'Turn On';
+
+  const showSecondaryRefresh = isPushSupported;
 
   const handleLogout = () => {
     console.log('User tapped Logout button');
@@ -264,13 +266,15 @@ const performAccountDeletion = async () => {
                   )}
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.notificationRefreshButton}
-                  onPress={refreshPushNotifications}
-                  disabled={isPushLoading}
-                >
-                  <Text style={styles.notificationRefreshButtonText}>Refresh</Text>
-                </TouchableOpacity>
+                {showSecondaryRefresh ? (
+                  <TouchableOpacity
+                    style={styles.notificationRefreshButton}
+                    onPress={refreshPushNotifications}
+                    disabled={isPushLoading}
+                  >
+                    <Text style={styles.notificationRefreshButtonText}>Refresh</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             </View>
           </View>
