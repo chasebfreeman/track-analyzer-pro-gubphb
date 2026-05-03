@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as Notifications from 'expo-notifications';
-import { useRouter } from 'expo-router';
+import { Href, useRootNavigationState, useRouter } from 'expo-router';
 
 import { useSupabaseAuth } from './SupabaseAuthContext';
 import {
@@ -26,9 +26,23 @@ interface PushNotificationsContextType {
 
 const PushNotificationsContext = createContext<PushNotificationsContextType | undefined>(undefined);
 
-function getNotificationUrl(notification: Notifications.Notification): string | null {
+function getNotificationHref(notification: Notifications.Notification): Href | null {
+  const trackId = notification.request.content.data?.trackId;
+  const readingId = notification.request.content.data?.readingId;
+
+  if (typeof trackId === 'string' && typeof readingId === 'string') {
+    return {
+      pathname: '/(tabs)/browse/reading-detail',
+      params: { trackId, readingId },
+    };
+  }
+
   const url = notification.request.content.data?.url;
-  return typeof url === 'string' ? url : null;
+  if (typeof url === 'string' && url.length > 0) {
+    return url as Href;
+  }
+
+  return null;
 }
 
 export function usePushNotifications() {
@@ -42,7 +56,8 @@ export function usePushNotifications() {
 
 export function PushNotificationsProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user } = useSupabaseAuth();
+  const rootNavigationState = useRootNavigationState();
+  const { user, isLoading: isAuthLoading } = useSupabaseAuth();
 
   const [isSupported, setIsSupported] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +65,7 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
   const [isEnabled, setIsEnabled] = useState(false);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [pendingNotificationHref, setPendingNotificationHref] = useState<Href | null>(null);
 
   const applySnapshot = (snapshot: PushRegistrationSnapshot) => {
     setIsSupported(snapshot.supported);
@@ -60,26 +76,40 @@ export function PushNotificationsProvider({ children }: { children: React.ReactN
   };
 
   useEffect(() => {
-    const redirectFromNotification = (notification: Notifications.Notification) => {
-      const url = getNotificationUrl(notification);
-      if (url) {
-        router.push(url as never);
+    const queueNotificationNavigation = (notification: Notifications.Notification) => {
+      const href = getNotificationHref(notification);
+      if (href) {
+        setPendingNotificationHref(href);
       }
     };
 
     const response = Notifications.getLastNotificationResponse();
     if (response?.notification) {
-      redirectFromNotification(response.notification);
+      queueNotificationNavigation(response.notification);
     }
 
     const subscription = Notifications.addNotificationResponseReceivedListener((nextResponse) => {
-      redirectFromNotification(nextResponse.notification);
+      queueNotificationNavigation(nextResponse.notification);
     });
 
     return () => {
       subscription.remove();
     };
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingNotificationHref) return;
+    if (!rootNavigationState?.key) return;
+    if (isAuthLoading) return;
+    if (!user) return;
+
+    const timer = setTimeout(() => {
+      router.push(pendingNotificationHref);
+      setPendingNotificationHref(null);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [pendingNotificationHref, rootNavigationState?.key, isAuthLoading, user, router]);
 
   useEffect(() => {
     let isCancelled = false;
