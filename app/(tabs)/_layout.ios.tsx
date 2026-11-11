@@ -29,7 +29,7 @@ export default function TabLayout() {
         <Label>Browse</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="photos">
-        <Icon sf={{ default: 'photo.on.rectangle', selected: 'photo.on.rectangle.fill' }} drawable="photo_library" />
+        <Icon sf={{ default: 'photo.on.rectangle', selected: 'photo.fill.on.rectangle.fill' }} drawable="photo_library" />
         <Label>Photos</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">

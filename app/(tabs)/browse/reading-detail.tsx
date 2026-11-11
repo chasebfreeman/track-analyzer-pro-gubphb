@@ -171,7 +171,7 @@ export default function ReadingDetailScreen() {
     );
   };
 
-  const renderLaneData = (lane: LaneReading, title: string) => {
+  const renderLaneData = (lane: Partial<LaneReading>, title: string) => {
     const completeLane = {
       trackTemp: '',
       uvIndex: '',
