@@ -37,3 +37,6 @@ netlify.toml
 
 pnpm-lock.yaml
 package-lock.json
+
+# Builder chat logs
+chat_history.json

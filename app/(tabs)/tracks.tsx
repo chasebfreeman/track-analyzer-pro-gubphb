@@ -20,6 +20,13 @@ import { useThemeColors } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { Track } from '@/types/TrackData';
 import { SupabaseStorageService } from '@/utils/supabaseStorage';
+import {
+  NhraTrack,
+  buildTrackName,
+  findNhraTrack,
+  searchNhraTracks,
+  tidyText,
+} from '@/constants/nhraTracks';
 
 export default function TracksScreen() {
   const colors = useThemeColors();
@@ -32,7 +39,26 @@ export default function TracksScreen() {
   const [isAddingTrack, setIsAddingTrack] = useState(false);
   const [newTrackName, setNewTrackName] = useState('');
   const [newTrackLocation, setNewTrackLocation] = useState('');
+  const [newTrackTag, setNewTrackTag] = useState('');
+  const [pickedVenue, setPickedVenue] = useState<NhraTrack | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Suggestions only while typing a name that isn't already a picked venue.
+  const venueSuggestions =
+    pickedVenue && pickedVenue.name === newTrackName ? [] : searchNhraTracks(newTrackName, 5);
+
+  const handlePickVenue = (venue: NhraTrack) => {
+    setPickedVenue(venue);
+    setNewTrackName(venue.name);
+    setNewTrackLocation(venue.location);
+  };
+
+  const resetAddForm = () => {
+    setNewTrackName('');
+    setNewTrackLocation('');
+    setNewTrackTag('');
+    setPickedVenue(null);
+  };
 
   // Keep track of open swipeable refs to close them when opening another
   const openSwipeableRef = useRef<Swipeable | null>(null);
@@ -65,14 +91,18 @@ export default function TracksScreen() {
   }, [loadTracks, loadAvailableYears]);
 
   useEffect(() => {
-    console.log('Filtering tracks by year:', selectedYear);
+    let cancelled = false;
     if (selectedYear === null) {
       setFilteredTracks(allTracks);
-    } else {
-      // Filter tracks that have readings in the selected year
-      // For now, show all tracks (we'll filter in the browse screen)
-      setFilteredTracks(allTracks);
+      return;
     }
+    // Only show tracks that have readings in the selected year.
+    SupabaseStorageService.getTrackIdsForYear(selectedYear).then((ids) => {
+      if (!cancelled) setFilteredTracks(allTracks.filter((t) => ids.has(t.id)));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedYear, allTracks]);
 
   const handleRefresh = async () => {
@@ -86,21 +116,33 @@ export default function TracksScreen() {
   const handleAddTrack = async () => {
     console.log('User tapped Add Track button');
     
-    if (!newTrackName.trim() || !newTrackLocation.trim()) {
+    // Snap typed names/nicknames ("indy", "Thunder Valley") to the official NHRA venue.
+    const venue = pickedVenue ?? findNhraTrack(newTrackName);
+    const venueName = venue ? venue.name : tidyText(newTrackName);
+    const location = tidyText(newTrackLocation) || venue?.location || '';
+
+    if (!venueName || !location) {
       Alert.alert('Error', 'Please enter both track name and location');
       return;
     }
 
-    console.log('Creating new track:', newTrackName, newTrackLocation);
-    const track = await SupabaseStorageService.createTrack(
-      newTrackName.trim(),
-      newTrackLocation.trim()
-    );
+    const finalName = buildTrackName(venueName, newTrackTag);
+
+    const duplicate = allTracks.find((t) => t.name.toLowerCase() === finalName.toLowerCase());
+    if (duplicate) {
+      Alert.alert(
+        'Track already exists',
+        `"${finalName}" is already in your list. Add a tag (like "Finals" or "Test") to keep a separate event, or open the existing track.`
+      );
+      return;
+    }
+
+    console.log('Creating new track:', finalName, location);
+    const track = await SupabaseStorageService.createTrack(finalName, location);
 
     if (track) {
       console.log('Track created successfully');
-      setNewTrackName('');
-      setNewTrackLocation('');
+      resetAddForm();
       setIsAddingTrack(false);
       Keyboard.dismiss();
       await loadTracks();
@@ -224,6 +266,7 @@ export default function TracksScreen() {
             style={styles.addButton}
             onPress={() => {
               console.log('User tapped + button');
+              if (isAddingTrack) resetAddForm();
               setIsAddingTrack(!isAddingTrack);
             }}
           >
@@ -240,20 +283,53 @@ export default function TracksScreen() {
           <View style={styles.addTrackForm}>
             <TextInput
               style={styles.input}
-              placeholder="Track Name"
+              placeholder="Track name, city, or event (e.g. Indy, Gators)"
               placeholderTextColor={colors.textSecondary}
               value={newTrackName}
-              onChangeText={setNewTrackName}
+              onChangeText={(text) => {
+                setNewTrackName(text);
+                if (pickedVenue && text !== pickedVenue.name) setPickedVenue(null);
+              }}
+              autoCorrect={false}
+              returnKeyType="next"
+            />
+            {venueSuggestions.length > 0 && (
+              <View style={styles.suggestions}>
+                {venueSuggestions.map((venue) => (
+                  <TouchableOpacity
+                    key={`venue-${venue.name}`}
+                    style={styles.suggestionRow}
+                    onPress={() => handlePickVenue(venue)}
+                  >
+                    <Text style={styles.suggestionName}>{venue.name}</Text>
+                    <Text style={styles.suggestionMeta}>
+                      {venue.location} · {venue.events.join(', ')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <TextInput
+              style={styles.input}
+              placeholder="Location (City, ST)"
+              placeholderTextColor={colors.textSecondary}
+              value={newTrackLocation}
+              onChangeText={setNewTrackLocation}
               returnKeyType="next"
             />
             <TextInput
               style={styles.input}
-              placeholder="Location"
+              placeholder="Tag (optional) – e.g. Test, Finals"
               placeholderTextColor={colors.textSecondary}
-              value={newTrackLocation}
-              onChangeText={setNewTrackLocation}
+              value={newTrackTag}
+              onChangeText={setNewTrackTag}
               returnKeyType="done"
             />
+            {!!newTrackName.trim() && (
+              <Text style={styles.previewText}>
+                Saves as: {buildTrackName((pickedVenue ?? findNhraTrack(newTrackName))?.name ?? newTrackName, newTrackTag)}
+              </Text>
+            )}
             <TouchableOpacity style={styles.saveButton} onPress={handleAddTrack}>
               <Text style={styles.saveButtonText}>Add Track</Text>
             </TouchableOpacity>
@@ -408,6 +484,36 @@ function getStyles(colors: ReturnType<typeof useThemeColors>) {
       color: colors.text,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    suggestions: {
+      marginTop: -6,
+      marginBottom: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      overflow: 'hidden',
+    },
+    suggestionRow: {
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    suggestionName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    suggestionMeta: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    previewText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginBottom: 12,
     },
     saveButton: {
       backgroundColor: colors.primary,
