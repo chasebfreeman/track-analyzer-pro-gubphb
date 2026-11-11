@@ -395,6 +395,20 @@ export class SupabaseStorageService {
     ).sort((a, b) => b - a);
   }
 
+  /** IDs of tracks that have at least one reading in the given year. */
+  static async getTrackIdsForYear(year: number): Promise<Set<string>> {
+    if (!isSupabaseConfigured()) return new Set();
+
+    const { data, error } = await supabase.from('readings').select('track_id').eq('year', year);
+
+    if (error) {
+      console.error('Error fetching tracks for year:', error);
+      return new Set();
+    }
+
+    return new Set((data ?? []).map((r: any) => r.track_id as string));
+  }
+
   static async getTrackPhotos(trackId?: string): Promise<TrackPhoto[]> {
     if (!isSupabaseConfigured()) return [];
 

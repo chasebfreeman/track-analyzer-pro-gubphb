@@ -9,3 +9,6 @@ node_modules/
 # Ignore build artifacts
 *.bundle.js
 *.bundle.js.map
+
+# Supabase Edge Functions run on Deno (jsr: imports), not the app bundle
+supabase/functions/
